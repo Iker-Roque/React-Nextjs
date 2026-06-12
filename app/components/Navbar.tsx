@@ -77,7 +77,7 @@ const Navbar: React.FC = () => {
       {/* Logo */}
       <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
         <div className="rounded-lg shadow-sm">
-          <Image src="/img/logo.png" alt="Logo" width={60} height={60} />
+          <Image src="/img/logo.png" alt="Logo" width={60} height={60} style={{ height: "auto" }} />
         </div>
         <div>
           <h1 className="font-bold text-xl text-lib-dark leading-none">Library</h1>
