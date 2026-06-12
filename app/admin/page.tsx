@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { CheckCircleIcon , XCircleIcon } from "@phosphor-icons/react";
 
 export default function AdminDashboard() {
   const [libros, setLibros] = useState<any[]>([]);
@@ -18,6 +19,14 @@ export default function AdminDashboard() {
     cantidad: 1,
     categoria: ''
   });
+
+  // notificacion de Guardado de libro Formulario y de importacion de CSV
+  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
+
+  const mostrarNotificacion = (mensaje: string, tipo: 'exito' | 'error' = 'exito') => {
+    setNotificacion({ visible: true, mensaje, tipo });
+    setTimeout(() => setNotificacion({ visible: false, mensaje: '', tipo: 'exito' }), 3000); // Desaparece en 3 segundos
+  };
 
   const [allPrestamos, setAllPrestamos] = useState<any[]>([]);
 
@@ -88,12 +97,14 @@ export default function AdminDashboard() {
 
       if (!res.ok) throw new Error("Fallo al registrar el libro en el servidor.");
 
-      alert("¡Libro agregado!");
+      // --- CAMBIOS AQUÍ (Éxito) ---
+      mostrarNotificacion("¡Libro agregado correctamente!", "exito");
       setForm({ titulo: '', autor: '', isbn: '', cantidad: 1, categoria: '' }); // Limpia el formulario
       fetchLibros(); // Refresca la tabla del inventario al instante
 
     } catch (error: any) {
-      alert("Error: " + error.message);
+      // --- CAMBIOS AQUÍ (Error) ---
+      mostrarNotificacion(error.message, "error");
     } finally {
       setLoading(false);
     }
@@ -214,12 +225,26 @@ export default function AdminDashboard() {
   };
 
   return (
+
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-8">
       {/* HEADER */}
       <div className="mb-8">
         <h2 className="text-4xl font-bold text-lib-dark mb-2">Panel de Administración</h2>
         <p className="text-gray-500">Gestiona tu catálogo de libros de forma eficiente</p>
       </div>
+
+      {/* NOTIFICACIONES DE REGISTRO Y IMPORTACIÓN */}
+      {notificacion.visible && (
+        <div className={`fixed top-30 right-6 z-50 px-8 py-4 rounded-lg border flex items-center gap-2.5 text-sm font-medium shadow-sm transition-all ${notificacion.tipo === 'exito'
+            ? 'bg-green-50 text-green-800 border-green-200'
+            : 'bg-red-50 text-red-800 border-red-200'
+          }`}>
+          {notificacion.tipo === 'exito'
+            ? <CheckCircleIcon size={18} weight="fill" />
+            : <XCircleIcon size={18} weight="fill" />}
+          {notificacion.mensaje}
+        </div>
+      )}
 
       {/* TABS */}
       <div className="mb-8 flex gap-4 border-b border-gray-200">
@@ -408,8 +433,8 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4 text-gray-500">{new Date(p.fecha_prestamo).toLocaleDateString()}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${p.estado === 'solicitado' ? 'bg-yellow-100 text-yellow-700' :
-                            p.estado === 'prestado' ? 'bg-green-100 text-green-700' :
-                              'bg-red-100 text-red-700'
+                          p.estado === 'prestado' ? 'bg-green-100 text-green-700' :
+                            'bg-red-100 text-red-700'
                           }`}>
                           {p.estado}
                         </span>
