@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { BookIcon, XIcon} from '@phosphor-icons/react';
+import { BookIcon, XIcon } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabaseClient';
 
 const CarritoPrestamos = () => {
@@ -56,7 +56,7 @@ const CarritoPrestamos = () => {
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h2 className="font-bold text-lg text-gray-800">Mis Préstamos</h2>
           <button onClick={() => setAbierto(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl cursor-pointer">
-            <XIcon size={30}/> 
+            <XIcon size={30} />
           </button>
         </div>
 
@@ -71,8 +71,8 @@ const CarritoPrestamos = () => {
                 <p className="text-xs text-gray-800 font-bold mb-1">{prestamo.libro?.titulo?.replace(/['"]/g, '') || 'Libro desconocido'}</p>
                 <div className="flex justify-between items-center mt-2">
                   <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${prestamo.estado === 'solicitado' ? 'bg-yellow-100 text-yellow-700' :
-                      prestamo.estado === 'devuelto' ? 'bg-green-100 text-green-700' :
-                        'bg-blue-100 text-blue-700'
+                    prestamo.estado === 'devuelto' ? 'bg-green-100 text-green-700' :
+                      'bg-green-100 text-green-700'
                     }`}>
                     {prestamo.estado}
                   </span>
@@ -82,9 +82,9 @@ const CarritoPrestamos = () => {
                     </p>
                     <p className="text-[10px] font-bold text-red-500 mt-0.5">
                       Devolver: {
-                        prestamo.fecha_devolucion
-                          ? new Date(prestamo.fecha_devolucion).toLocaleDateString()
-                          : (prestamo.fecha_prestamo ? new Date(new Date(prestamo.fecha_prestamo).setDate(new Date(prestamo.fecha_prestamo).getDate() + 7)).toLocaleDateString() : 'N/A')
+                        prestamo.fecha_vencimiento
+                          ? new Date(prestamo.fecha_vencimiento).toLocaleDateString()
+                          : 'N/A'
                       }
                     </p>
                   </div>

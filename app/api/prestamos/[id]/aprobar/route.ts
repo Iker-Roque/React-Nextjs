@@ -5,9 +5,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     try {
         const { id } = await params;
 
+        const fechaVencimiento = new Date();
+        fechaVencimiento.setDate(fechaVencimiento.getDate() + 14); // Agrega 14 días a la fecha actual
+
         const { error } = await supabase
             .from('prestamos')
-            .update({ estado: 'prestado' })
+            .update({ 
+                estado: 'prestado',
+                fecha_vencimiento: fechaVencimiento.toISOString()
+             })
             .eq('id', id);
 
         if (error) throw error;

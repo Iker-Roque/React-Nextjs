@@ -1,25 +1,22 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
-// GET: Obtener todos los préstamos (Para que tu tabla del Admin se llene)
+// GET: Obtener todos los préstamos
 export async function GET() {
     const { data, error } = await supabase
         .from('prestamos')
-        .select(`
-            *,
-            libro:libros (*)
-        `)
-        .order('fecha_prestamo', { ascending: false }); // <-- Nombre corregido aquí
+        .select(`*, libro:libros (*)`)
+        .order('fecha_prestamo', { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data || []);
 }
-// POST: Solicitar un nuevo préstamo
+
+// POST: Solicitar un nuevo préstamo con aprobación automática
 export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        // 1. Verificar stock disponible primero
         const { data: libroInfo, error: errorLibro } = await supabase
             .from("libros")
             .select("disponibles")
@@ -27,26 +24,28 @@ export async function POST(request: Request) {
             .single();
 
         if (errorLibro || !libroInfo || libroInfo.disponibles <= 0) {
-            return NextResponse.json(
-                { error: "No hay stock disponible para este libro" },
-                { status: 400 },
-            );
+            return NextResponse.json({ error: "No hay stock disponible para este libro" }, { status: 400 });
         }
 
-        // 2. Insertar el préstamo en estado 'solicitado'
-        // 2. Insertar el préstamo en estado 'solicitado'
-        const { error: errorPrestamo } = await supabase
+        const fechaVencimiento = new Date();
+        fechaVencimiento.setDate(fechaVencimiento.getDate() + 12);
+       
+        //Insertar y capturar el ID generado
+        const { data: prestamoNuevo, error: errorPrestamo } = await supabase
             .from('prestamos')
             .insert([{
-                libro_id: body.libroId,       // Columna BD : Dato del Frontend
+                libro_id: body.libroId,       
                 dni_usuario: body.dniUsuario,
-                usuario_id: body.usuarioId,   // Columna BD : Dato del Frontend
-                estado: 'solicitado'
-            }]);
+                usuario_id: body.usuarioId,   
+                estado: 'solicitado',
+                fecha_prestamo: new Date().toISOString(),
+                fecha_vencimiento:  fechaVencimiento.toISOString()
+            }])
+            .select()
+            .single();
 
         if (errorPrestamo) throw errorPrestamo;
 
-        // 3. Descontar el stock (restar 1)
         const { error: errorUpdate } = await supabase
             .from("libros")
             .update({ disponibles: libroInfo.disponibles - 1 })
@@ -54,10 +53,19 @@ export async function POST(request: Request) {
 
         if (errorUpdate) throw errorUpdate;
 
-        return NextResponse.json(
-            { message: "Préstamo solicitado exitosamente" },
-            { status: 201 },
-        );
+        // Temporizador automático de 10 segundos
+        setTimeout(async () => {
+            try {
+                await supabase
+                    .from('prestamos')
+                    .update({ estado: 'prestado' })
+                    .eq('id', prestamoNuevo.id);
+            } catch (err) {
+                // Silenciado
+            }
+        }, 10000);
+
+        return NextResponse.json({ message: "Préstamo solicitado exitosamente" }, { status: 201 });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -67,10 +75,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
-        const { id, accion } = body; // accion puede ser 'aprobar' o 'rechazar'
+        const { id, accion } = body;
 
         if (accion === "aprobar") {
-            // Cambiar estado a 'prestado'
             const { error } = await supabase
                 .from("prestamos")
                 .update({ estado: "prestado" })
@@ -81,7 +88,6 @@ export async function PUT(request: Request) {
         }
 
         if (accion === "rechazar") {
-            // 1. Obtener el ID del libro vinculado a este préstamo
             const { data: prestamo, error: errorPrestamo } = await supabase
                 .from("prestamos")
                 .select("libroId")
@@ -90,7 +96,6 @@ export async function PUT(request: Request) {
 
             if (errorPrestamo) throw errorPrestamo;
 
-            // 2. Cambiar estado a 'rechazado'
             const { error: errorUpdate } = await supabase
                 .from("prestamos")
                 .update({ estado: "rechazado" })
@@ -98,8 +103,6 @@ export async function PUT(request: Request) {
 
             if (errorUpdate) throw errorUpdate;
 
-            // 3. Devolver el stock (sumar 1 a disponibles en la tabla libros)
-            // (Asume que tienes un procedimiento almacenado en Supabase o haces una lectura/escritura)
             const { data: libroInfo } = await supabase
                 .from("libros")
                 .select("disponibles")
@@ -113,13 +116,12 @@ export async function PUT(request: Request) {
                     .eq("id", prestamo.libroId);
             }
 
-            return NextResponse.json({
-                message: "Préstamo rechazado y stock devuelto",
-            });
+            return NextResponse.json({ message: "Préstamo rechazado y stock devuelto" });
         }
 
         return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
     } catch (error: any) {
+        
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

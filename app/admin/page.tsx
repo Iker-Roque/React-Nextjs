@@ -345,7 +345,7 @@ export default function AdminDashboard() {
                 disabled={loading}
                 className="w-full bg-lib-dark text-white py-3 rounded-lg font-bold hover:bg-opacity-90 transition-all shadow-md disabled:opacity-50"
               >
-                {loading ? '⏳ Guardando...' : '✓ Guardar Libro'}
+                {loading ? ('⏳ Guardando...') : ('Guardar Libro')}
               </button>
             </form>
           </div>

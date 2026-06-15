@@ -26,10 +26,34 @@ export async function POST(request: Request) {
       });
     }
 
-    const { error } = await supabase.from('libros').insert(libros);
+    // Obtener libros actuales de la base de datos
+    const { data: librosActuales, error: errFetch } = await supabase.from('libros').select('*');
+    if (errFetch) throw errFetch;
+
+    // Procesar sumando cantidades si el ISBN ya existe
+    const librosProcesados = libros.map((libroCsv) => {
+      const libroExistente = librosActuales?.find(l => l.isbn === libroCsv.isbn);
+
+      if (libroExistente) {
+        return {
+          id: libroExistente.id, // El ID hace que Supabase actualice en lugar de crear uno nuevo
+          titulo: libroExistente.titulo, 
+          autor: libroExistente.autor,
+          isbn: libroCsv.isbn,
+          categoria: libroExistente.categoria,
+          cantidad: libroExistente.cantidad + libroCsv.cantidad,
+          disponibles: libroExistente.disponibles + libroCsv.cantidad
+        };
+      } else {
+        return libroCsv;
+      }
+    });
+
+    // Insertar nuevos y actualizar existentes
+    const { error } = await supabase.from('libros').upsert(librosProcesados);
     if (error) throw error;
 
-    return NextResponse.json({ message: `Importados ${libros.length} libros` }, { status: 201 });
+    return NextResponse.json({ message: `Importados/Actualizados ${librosProcesados.length} libros` }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
