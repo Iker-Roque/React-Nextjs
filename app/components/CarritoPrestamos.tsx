@@ -35,7 +35,7 @@ const CarritoPrestamos = () => {
     <>
       <button
         onClick={() => setAbierto(true)}
-        className="fixed bottom-10 right-6 bg-[#e4e2de] text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-50 flex items-center justify-center cursor-pointer"
+        className="fixed bottom-20 right-6 bg-[#e4e2de] text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-50 flex items-center justify-center cursor-pointer"
       >
         <span className="text-xl"><BookIcon size={24} color="black" /></span>
         {prestamos.length > 0 && (
@@ -70,9 +70,10 @@ const CarritoPrestamos = () => {
               <div key={prestamo.id} className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
                 <p className="text-xs text-gray-800 font-bold mb-1">{prestamo.libro?.titulo?.replace(/['"]/g, '') || 'Libro desconocido'}</p>
                 <div className="flex justify-between items-center mt-2">
-                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${prestamo.estado === 'solicitado' ? 'bg-yellow-100 text-yellow-700' :
-                    prestamo.estado === 'devuelto' ? 'bg-green-100 text-green-700' :
-                      'bg-green-100 text-green-700'
+                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase 
+                  ${prestamo.estado === 'solicitado' ? 'bg-yellow-100 text-yellow-700' :
+                      prestamo.estado === 'rechazado' ? 'bg-red-100 text-red-700' :
+                        'bg-green-100 text-green-700'
                     }`}>
                     {prestamo.estado}
                   </span>
@@ -86,6 +87,9 @@ const CarritoPrestamos = () => {
                           ? new Date(prestamo.fecha_vencimiento).toLocaleDateString()
                           : 'N/A'
                       }
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Origen del libro: <span className="font-semibold text-gray-700">{prestamo.libro?.procedencia || 'No especificado'}</span>
                     </p>
                   </div>
                 </div>

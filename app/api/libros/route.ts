@@ -60,7 +60,8 @@ export async function POST(request: Request) {
                     isbn: body.isbn,
                     cantidad: body.cantidad,
                     categoria: body.categoria,
-                    disponibles: body.cantidad 
+                    disponibles: body.cantidad,
+                    procedencia: body.procedencia
                 }]);
 
             if (errInsert) throw errInsert;

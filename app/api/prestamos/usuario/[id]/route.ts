@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             .from('prestamos')
             .select(`
                 *,
-                libro:libros (titulo)
+                libro:libros (id, titulo, procedencia)
             `)
             .eq('usuario_id', id)
             .order('fecha_prestamo', { ascending: false });

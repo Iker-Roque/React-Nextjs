@@ -16,13 +16,21 @@ export async function POST(request: Request) {
     for (let i = 1; i < lines.length; i++) {
       if (lines[i].trim() === '') continue;
       const values = lines[i].split(',').map(v => v.trim());
+      
+      // Verificamos si existe la columna 'procedencia' en el CSV
+      const indexProcedencia = headers.indexOf('procedencia');
+      const procedenciaCsv = indexProcedencia !== -1 && values[indexProcedencia] 
+          ? values[indexProcedencia] 
+          : 'Comprado'; // Valor por defecto si la celda está vacía o no existe
+
       libros.push({
         titulo: values[headers.indexOf('titulo')],
         autor: values[headers.indexOf('autor')],
         isbn: values[headers.indexOf('isbn')],
         cantidad: Number(values[headers.indexOf('cantidad')]),
         disponibles: Number(values[headers.indexOf('cantidad')]),
-        categoria: values[headers.indexOf('categoria')]
+        categoria: values[headers.indexOf('categoria')],
+        procedencia: procedenciaCsv // <-- Nueva línea
       });
     }
 
@@ -30,19 +38,20 @@ export async function POST(request: Request) {
     const { data: librosActuales, error: errFetch } = await supabase.from('libros').select('*');
     if (errFetch) throw errFetch;
 
-    // Procesar sumando cantidades si el ISBN ya existe
+    // 2. Procesar sumando cantidades
     const librosProcesados = libros.map((libroCsv) => {
       const libroExistente = librosActuales?.find(l => l.isbn === libroCsv.isbn);
 
       if (libroExistente) {
         return {
-          id: libroExistente.id, // El ID hace que Supabase actualice en lugar de crear uno nuevo
+          id: libroExistente.id,
           titulo: libroExistente.titulo, 
           autor: libroExistente.autor,
           isbn: libroCsv.isbn,
           categoria: libroExistente.categoria,
           cantidad: libroExistente.cantidad + libroCsv.cantidad,
-          disponibles: libroExistente.disponibles + libroCsv.cantidad
+          disponibles: libroExistente.disponibles + libroCsv.cantidad,
+          procedencia: libroCsv.procedencia // <-- Actualiza la procedencia
         };
       } else {
         return libroCsv;
