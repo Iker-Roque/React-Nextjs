@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
+const PROCEDENCIAS_VALIDAS = ['Comprado', 'Donado', 'Canje', 'Reposición'];
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -12,16 +14,23 @@ export async function POST(request: Request) {
     const lines = text.trim().split('\n');
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
 
+    const indexProcedencia = headers.indexOf('procedencia');
+
     const libros = [];
     for (let i = 1; i < lines.length; i++) {
       if (lines[i].trim() === '') continue;
       const values = lines[i].split(',').map(v => v.trim());
-      
-      // Verificamos si existe la columna 'procedencia' en el CSV
-      const indexProcedencia = headers.indexOf('procedencia');
-      const procedenciaCsv = indexProcedencia !== -1 && values[indexProcedencia] 
-          ? values[indexProcedencia] 
-          : 'Comprado'; // Valor por defecto si la celda está vacía o no existe
+
+      const procedenciaCsv = indexProcedencia !== -1 && values[indexProcedencia]
+        ? values[indexProcedencia]
+        : 'Comprado';
+
+      if (!PROCEDENCIAS_VALIDAS.includes(procedenciaCsv)) {
+        return NextResponse.json(
+          { error: `Procedencia inválida en fila ${i}: "${procedenciaCsv}"` },
+          { status: 400 }
+        );
+      }
 
       libros.push({
         titulo: values[headers.indexOf('titulo')],
@@ -30,35 +39,32 @@ export async function POST(request: Request) {
         cantidad: Number(values[headers.indexOf('cantidad')]),
         disponibles: Number(values[headers.indexOf('cantidad')]),
         categoria: values[headers.indexOf('categoria')],
-        procedencia: procedenciaCsv // <-- Nueva línea
+        procedencia: procedenciaCsv
       });
     }
 
-    // Obtener libros actuales de la base de datos
     const { data: librosActuales, error: errFetch } = await supabase.from('libros').select('*');
     if (errFetch) throw errFetch;
 
-    // 2. Procesar sumando cantidades
     const librosProcesados = libros.map((libroCsv) => {
       const libroExistente = librosActuales?.find(l => l.isbn === libroCsv.isbn);
 
       if (libroExistente) {
         return {
           id: libroExistente.id,
-          titulo: libroExistente.titulo, 
+          titulo: libroExistente.titulo,
           autor: libroExistente.autor,
           isbn: libroCsv.isbn,
           categoria: libroExistente.categoria,
           cantidad: libroExistente.cantidad + libroCsv.cantidad,
           disponibles: libroExistente.disponibles + libroCsv.cantidad,
-          procedencia: libroCsv.procedencia // <-- Actualiza la procedencia
+          procedencia: libroExistente.procedencia // conserva la procedencia original
         };
       } else {
         return libroCsv;
       }
     });
 
-    // Insertar nuevos y actualizar existentes
     const { error } = await supabase.from('libros').upsert(librosProcesados);
     if (error) throw error;
 
