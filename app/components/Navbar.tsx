@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
 import Image from 'next/image';
 
 
@@ -10,6 +11,7 @@ const Navbar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
 
+  //UseState
   const [usuario, setUsuario] = useState<any>(null);
   const ADMIN_EMAIL = "71727374@biblioteca.com"; 
   const [rolReal, setRolReal] = useState<string>('usuario');
@@ -71,6 +73,8 @@ const Navbar: React.FC = () => {
 
   const esAdmin = rolReal === 'administrador' || usuario?.email === ADMIN_EMAIL;
 
+  
+
   return (
     <nav className="flex items-center justify-between px-12 py-5 bg-white border-b border-gray-100 sticky top-0 z-50">
 
@@ -102,10 +106,25 @@ const Navbar: React.FC = () => {
         </ul>
       </div>
 
+
+      
+
       {/* Sección de Usuario */}
       <div className="flex items-center gap-6">
         {usuario ? (
           <div className="flex items-center gap-5 border-l pl-5 border-gray-200">
+            
+            {/* NUEVO: Botón de Mi Perfil */}
+            <Link
+              href="/perfil"
+              className="text-[11px] font-black text-gray-500 hover:text-lib-dark transition-colors uppercase tracking-widest cursor-pointer"
+            >
+              Mi Perfil
+            </Link>
+
+            {/* Separador */}
+            <div className="h-6 w-px bg-gray-200 hidden sm:block"></div>
+
             <div className="text-right">
               <p className="text-[11px] font-black text-gray-900 uppercase tracking-tight">
                 {usuario.user_metadata?.nombre_completo}
