@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { EyeIcon , EyeSlashIcon } from '@phosphor-icons/react';
 
 const Login: React.FC = () => {
   const router = useRouter();
@@ -13,6 +14,7 @@ const Login: React.FC = () => {
   const [dni, setDni] = useState('');
   const [password, setPassword] = useState('');
   const [errorMensaje, setErrorMensaje] = useState('');
+  const [mostrarPassword, setMostrarPassword] = useState(false);
 
   // Ocultar Barra de Navegacion en Login y Registro
   useEffect(() => {
@@ -154,14 +156,22 @@ const Login: React.FC = () => {
               className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm"
             />
 
-            <input
-              type="password"
-              placeholder="Contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm"
-            />
-
+            <div className="relative">
+              <input
+                type={mostrarPassword ? "text" : "password"}
+                placeholder="Contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-5 pr-12 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarPassword(!mostrarPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                {mostrarPassword ? <EyeSlashIcon size={22} /> : <EyeIcon size={22} />}
+              </button>
+            </div>
             {!isRegistro && (
               <div className="text-left pl-1">
                 <button

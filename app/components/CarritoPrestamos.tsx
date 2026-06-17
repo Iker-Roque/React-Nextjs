@@ -3,11 +3,18 @@
 import { useState, useEffect } from 'react';
 import { BookIcon, XIcon } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabaseClient';
+import { usePathname } from 'next/navigation'; // <-- 1. Importación añadida
 
 const CarritoPrestamos = () => {
   const [abierto, setAbierto] = useState(false);
   const [prestamos, setPrestamos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
+  
+  //Obtener la ruta actual
+  const pathname = usePathname(); 
+  
+  //Defino en qué rutas se debe ocultar (exactamente en perfil o cualquier ruta que empiece con admin)
+  const ocultarCarrito = pathname === '/perfil' || pathname?.startsWith('/admin');
 
   const cargarMisPrestamos = async () => {
     setCargando(true);
@@ -30,6 +37,9 @@ const CarritoPrestamos = () => {
   useEffect(() => {
     if (abierto) cargarMisPrestamos();
   }, [abierto]);
+
+  // <-- 4. Si la ruta es admin o perfil, no renderiza nada (lo oculta)
+  if (ocultarCarrito) return null;
 
   return (
     <>

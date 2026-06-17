@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { CheckCircleIcon } from '@phosphor-icons/react';
+import { CheckCircleIcon, EyeSlashIcon, EyeIcon } from '@phosphor-icons/react';
 
 export default function PerfilUsuario() {
     const router = useRouter();
@@ -15,6 +15,8 @@ export default function PerfilUsuario() {
     const [confirmPasswordForm, setConfirmPasswordForm] = useState('');
     const [guardando, setGuardando] = useState(false);
     const [guardadoExitoso, setGuardadoExitoso] = useState(false);
+    const [mostrarPass, setMostrarPass] = useState(false);
+    const [mostrarConfirm, setMostrarConfirm] = useState(false);
 
 
     const [alerta, setAlerta] = useState<{ tipo: 'exito' | 'error', texto: string } | null>(null);
@@ -94,6 +96,11 @@ export default function PerfilUsuario() {
             setGuardando(false);
         }
     };
+
+    
+
+
+
     const nombreCompleto = usuario?.user_metadata?.nombre_completo || 'Usuario';
     const iniciales = nombreCompleto.substring(0, 2).toUpperCase();
 
@@ -127,8 +134,8 @@ export default function PerfilUsuario() {
 
                             <div className="border-t border-gray-100 pt-6 text-left space-y-4">
                                 <div>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase">Correo Electrónico</p>
-                                    <p className="text-sm font-medium text-gray-800">{usuario?.email}</p>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase">DNI DE USUARIO</p>
+                                    <p className="text-sm font-medium text-gray-800">{usuario?.user_metadata.dni}</p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black text-gray-400 uppercase">Estado de Cuenta</p>
@@ -174,36 +181,65 @@ export default function PerfilUsuario() {
                                                 className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark focus:border-transparent text-sm"
                                             />
                                         </div>
+
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">Nueva Contraseña</label>
-                                            <input
-                                                type="password"
-                                                placeholder="Deja en blanco para no cambiarla"
-                                                value={passwordForm}
-                                                onChange={(e) => setPasswordForm(e.target.value)}
-                                                className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark focus:border-transparent text-sm"
-                                            />
+                                            <div className="relative">
+                                                <input
+                                                    type={mostrarPass ? "text" : "password"}
+                                                    placeholder="Deja en blanco para no cambiarla"
+                                                    value={passwordForm}
+                                                    onChange={(e) => setPasswordForm(e.target.value)}
+                                                    className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark focus:border-transparent text-sm pr-10"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMostrarPass(!mostrarPass)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                                >
+                                                    {mostrarPass ? <EyeSlashIcon size={20} /> : <EyeIcon size={20} />}
+                                                </button>
+                                            </div>
                                         </div>
+
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">Confirmar Nueva Contraseña</label>
-                                            <input
-                                                type="password"
-                                                placeholder="Repite la nueva contraseña"
-                                                value={confirmPasswordForm}
-                                                onChange={(e) => setConfirmPasswordForm(e.target.value)}
-                                                className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark focus:border-transparent text-sm"
-                                            />
+                                            <div className="relative">
+                                                <input
+                                                    type={mostrarConfirm ? "text" : "password"}
+                                                    placeholder="Repite la nueva contraseña"
+                                                    value={confirmPasswordForm}
+                                                    onChange={(e) => setConfirmPasswordForm(e.target.value)}
+                                                    className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark focus:border-transparent text-sm pr-10"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMostrarConfirm(!mostrarConfirm)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                                >
+                                                    {mostrarConfirm ? <EyeSlashIcon size={20} /> : <EyeIcon size={20} />}
+                                                </button>
+                                            </div>
                                         </div>
+
                                         <div className="pt-2">
                                             <button
                                                 type="submit"
                                                 disabled={guardando || guardadoExitoso}
-                                                className={`w-full py-3 rounded-lg font-bold text-sm transition-all shadow-md cursor-pointer disabled:opacity-50 ${guardadoExitoso
-                                                    ? 'bg-green-600 text-white hover:bg-green-700'
-                                                    : 'bg-lib-dark text-white hover:bg-opacity-90'
+                                                className={`w-full py-3 flex items-center justify-center gap-2 rounded-lg font-bold text-sm transition-all shadow-md cursor-pointer disabled:opacity-50 ${guardadoExitoso
+                                                        ? 'bg-green-600 text-white hover:bg-green-700'
+                                                        : 'bg-lib-dark text-white hover:bg-opacity-90'
                                                     }`}
                                             >
-                                                {guardando ? 'Guardando...' : guardadoExitoso ? <span className="flex items-center justify-center gap-2"><CheckCircleIcon size={20} color="white" weight="light" /> ¡Listo!</span> : 'Guardar Cambios'}
+                                                {guardando ? (
+                                                    'Guardando...'
+                                                ) : guardadoExitoso ? (
+                                                    <>
+                                                        <CheckCircleIcon size={20} weight="bold" /> ¡Listo!
+                                                    </>
+                                                ) : (
+                                                    'Guardar Cambios'
+                                                )}
                                             </button>
                                         </div>
                                     </form>
