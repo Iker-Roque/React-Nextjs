@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import CardLibro from '@/app/components/CardLibro';
+import { WarningCircleIcon } from "@phosphor-icons/react";
+import { usePerfil } from '@/app/hooks/usePerfil'; 
 
 export default function CatalogoPage() {
   const [busqueda, setBusqueda] = useState("");
   const [libros, setLibros] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   
-  // 1. Nuevo estado para el filtro de la barra lateral
+  // Use the custom hook to get the profile globally
+  const perfil = usePerfil();
+  
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,18 +46,15 @@ export default function CatalogoPage() {
     };
   }, []);
 
-  // 2. Extraer categorías únicas y contar cuántos libros hay en cada una
   const conteoCategorias = useMemo(() => {
     const conteo: Record<string, number> = {};
     libros.forEach(libro => {
       const cat = libro.categoria || 'Sin categoría';
       conteo[cat] = (conteo[cat] || 0) + 1;
     });
-    // Convertir el objeto a un arreglo y ordenarlo por cantidad (de mayor a menor)
     return Object.entries(conteo).sort((a, b) => b[1] - a[1]);
   }, [libros]);
 
-  // 3. Lógica de filtrado doble (Búsqueda por texto + Filtro por categoría)
   const librosFiltrados = libros.filter(libro => {
     const titulo = libro.titulo ? String(libro.titulo).toLowerCase() : '';
     const autor = libro.autor ? String(libro.autor).toLowerCase() : '';
@@ -84,16 +85,13 @@ export default function CatalogoPage() {
         </div>
       </header>
 
-      {/* Main actualizado con CSS Grid (12 columnas en pantallas grandes) */}
       <main className="max-w-[85%] mx-auto px-4 py-16 grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* BARRA LATERAL (Toma 3 de 12 columnas) */}
         <aside className="lg:col-span-2">
           <div className="sticky top-24 bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
             <h3 className="font-bold text-lg mb-6 font-serif italic text-lib-dark">Explorar Géneros</h3>
             
             <ul className="space-y-4">
-              {/* Opción para ver todos los libros */}
               <li 
                 onClick={() => setCategoriaSeleccionada(null)}
                 className="group flex justify-between items-center cursor-pointer"
@@ -106,7 +104,6 @@ export default function CatalogoPage() {
                 </span>
               </li>
 
-              {/* Mapeo dinámico de tus categorías reales */}
               {conteoCategorias.map(([categoria, cantidad]) => (
                 <li 
                   key={categoria} 
@@ -125,7 +122,6 @@ export default function CatalogoPage() {
           </div>
         </aside>
 
-        {/* SECCIÓN DE LIBROS (Toma 9 de 12 columnas) */}
         <section className="lg:col-span-10">
           <div className="flex justify-between items-center mb-10">
             <p className="text-sm text-gray-500 font-medium">
@@ -134,7 +130,25 @@ export default function CatalogoPage() {
             </p>
           </div>
 
-          {/* Grilla dinámica ajustada al nuevo espacio */}
+          {perfil?.estado_cuenta === 'inactivo' && (
+            <div className="mb-8 p-5 bg-red-50 border border-red-200 rounded-2xl flex flex-col sm:flex-row items-start gap-4 shadow-sm w-full">
+              <div className="p-2 bg-red-100 rounded-xl text-red-700 shrink-0">
+                <WarningCircleIcon size={28} weight="fill" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-bold text-base text-red-950 mb-1">Cuenta Temporalmente Suspendida</h4>
+                <p className="text-sm text-red-800 leading-relaxed">
+                  {perfil.motivo_estado 
+                    ? `Motivo: ${perfil.motivo_estado.trim()}` 
+                    : 'Tu cuenta ha sido desactivada por el administrador.'}
+                </p>
+                <p className="text-xs text-red-600 font-semibold mt-2 uppercase tracking-wider">
+                  Acércate a la biblioteca para regularizar tu situación.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {cargando ? (
               Array.from({ length: 4 }).map((_, index) => (
@@ -154,6 +168,7 @@ export default function CatalogoPage() {
                   genero={libro.categoria}
                   disp={libro.cantidad}
                   img={libro.img || ""}
+                  perfil={perfil}
                 />
               ))
             )}

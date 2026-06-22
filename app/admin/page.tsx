@@ -11,6 +11,7 @@ export default function AdminDashboard() {
   const [importMessage, setImportMessage] = useState('');
   const [busquedaId, setBusquedaId] = useState('');
   const [activeTab, setActiveTab] = useState<'register' | 'import' | 'inventory' | 'loans' | 'users'>('inventory');
+  
 
   const [form, setForm] = useState({
     titulo: '',
@@ -190,6 +191,8 @@ export default function AdminDashboard() {
   // --- CONTROL DE USUARIOS ---
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [busquedaUsuario, setBusquedaUsuario] = useState('');
+  const [modalUsuario, setModalUsuario] = useState<{ id: string, nombre: string } | null>(null);
+  const [motivoSuspension, setMotivoSuspension] = useState('');
 
   const fetchUsuarios = async () => {
     try {
@@ -201,21 +204,30 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleEstadoUsuario = async (userId: string, nuevoEstado: string) => {
+  const handleEstadoUsuario = async (userId: string, nuevoEstado: string, motivo: string | null = null) => {
     try {
       const { error } = await supabase
         .from('perfiles')
-        .update({ estado_cuenta: nuevoEstado })
+        .update({ 
+          estado_cuenta: nuevoEstado,
+          motivo_estado: motivo // <-- Guarda o borra el motivo
+        })
         .eq('id', userId);
 
       if (error) throw error;
-      mostrarNotificacion(`Usuario marcado como ${nuevoEstado}`, 'exito');
+      mostrarNotificacion(`Usuario marcado como ${nuevoEstado === 'inactivo' ? 'suspendido' : 'activo'}`, 'exito');
+      
+      // Limpiar y cerrar modal si estaba abierto
+      setModalUsuario(null);
+      setMotivoSuspension('');
       fetchUsuarios();
     } catch (error: any) {
       console.error("Error:", error);
       mostrarNotificacion("Error al actualizar estado del usuario", "error");
     }
   };
+
+  // ... (tu useEffect se queda igual)
 
   // Cargar usuarios cuando se abra la pestaña
   useEffect(() => {
@@ -570,7 +582,45 @@ export default function AdminDashboard() {
 
       {/* TAB: CONTROL DE USUARIOS */}
       {activeTab === 'users' && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden mb-8">
+        <div className="relative bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden mb-8">
+          
+          {/* VENTANA EMERGENTE (MODAL) DE SUSPENSIÓN */}
+          {modalUsuario && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm p-4">
+              <div className="bg-white p-6 rounded-2xl shadow-2xl border border-red-100 w-full max-w-md animate-fade-in">
+                <h4 className="text-xl font-bold text-gray-800 mb-2">Suspender Cuenta</h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Desactivando acceso a: <span className="font-bold">{modalUsuario.nombre}</span>
+                </p>
+                
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Motivo de la suspensión *</label>
+                <textarea
+                  autoFocus
+                  placeholder="Ej: Adeuda el libro El Quijote desde hace 2 meses..."
+                  value={motivoSuspension}
+                  onChange={(e) => setMotivoSuspension(e.target.value)}
+                  className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500 text-sm mb-4 resize-none h-24"
+                />
+                
+                <div className="flex gap-3 justify-end">
+                  <button 
+                    onClick={() => { setModalUsuario(null); setMotivoSuspension(''); }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    disabled={motivoSuspension.trim() === ''}
+                    onClick={() => handleEstadoUsuario(modalUsuario.id, 'inactivo', motivoSuspension)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    Confirmar Suspensión
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h3 className="text-2xl font-bold text-gray-800">Control de Usuarios Registrados</h3>
             <input
@@ -603,27 +653,37 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4 text-gray-600 font-mono">{usuario.dni || 'N/A'}</td>
                       <td className="px-6 py-4 text-gray-600 capitalize">{usuario.rol || 'alumno'}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${usuario.estado_cuenta === 'moroso'
-                          ? 'bg-red-100 text-red-700 border border-red-200'
-                          : 'bg-green-100 text-green-700 border border-green-200'
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                            usuario.estado_cuenta === 'inactivo' 
+                              ? 'bg-red-100 text-red-700 border border-red-200' 
+                              : 'bg-green-100 text-green-700 border border-green-200'
                           }`}>
-                          {usuario.estado_cuenta || 'activo'}
-                        </span>
+                            {usuario.estado_cuenta === 'inactivo' ? 'Suspendido' : 'Activo'}
+                          </span>
+                          
+                          {/* Muestra el motivo si está suspendido */}
+                          {usuario.estado_cuenta === 'inactivo' && usuario.motivo_estado && (
+                            <span className="text-[10px] text-red-600 font-semibold max-w-45 leading-tight">
+                              Motivo: {usuario.motivo_estado}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {usuario.estado_cuenta === 'moroso' ? (
+                        {usuario.estado_cuenta === 'inactivo' ? (
                           <button
-                            onClick={() => handleEstadoUsuario(usuario.id, 'activo')}
+                            onClick={() => handleEstadoUsuario(usuario.id, 'activo', null)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                           >
-                            Habilitar (Activo)
+                            Habilitar Cuenta
                           </button>
                         ) : (
                           <button
-                            onClick={() => handleEstadoUsuario(usuario.id, 'moroso')}
+                            onClick={() => setModalUsuario({ id: usuario.id, nombre: usuario.nombre_completo })}
                             className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                           >
-                            Mover a Moroso
+                            Suspender
                           </button>
                         )}
                       </td>
