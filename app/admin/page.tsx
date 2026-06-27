@@ -116,38 +116,6 @@ export default function AdminDashboard() {
 
   //Funcion de sancion
 
-  // Función que suma la infracción y suspende si llega a 3
-  const registrarInfraccion = async (usuarioId: string, infraccionesActuales: number, motivoSancion: string) => {
-    const nuevasInfracciones = (infraccionesActuales || 0) + 1;
-    const esInactivo = nuevasInfracciones >= 3;
-    const motivoFinal = esInactivo
-      ? `Cuenta suspendida por acumular 3 infracciones. (Última falta: ${motivoSancion})`
-      : motivoSancion;
-
-    try {
-      const { error } = await supabase
-        .from('perfiles')
-        .update({
-          infracciones: nuevasInfracciones,
-          estado_cuenta: esInactivo ? 'inactivo' : 'activo',
-          motivo_estado: esInactivo ? motivoFinal : null
-        })
-        .eq('id', usuarioId);
-
-      if (error) throw error;
-
-      mostrarNotificacion(esInactivo ? "Usuario suspendido (Límite de infracciones)" : "Infracción registrada (Faltan " + (3 - nuevasInfracciones) + " para suspensión)", "exito");
-      setModalUsuario(null);
-      setMotivoSuspension('');
-      fetchUsuarios();
-    } catch (error) {
-      mostrarNotificacion("Error al registrar la infracción", "error");
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'users') fetchUsuarios();
-  }, [activeTab]);
 
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -254,7 +222,8 @@ export default function AdminDashboard() {
 
   const fetchUsuarios = async () => {
     try {
-      const { data, error } = await supabase.from('perfiles').select('*');
+      // Ordenamos por nombre para que la lista siempre se vea igual
+      const { data, error } = await supabase.from('perfiles').select('*').order('nombre_completo');
       if (error) throw error;
       setUsuarios(data || []);
     } catch (error) {
@@ -262,32 +231,75 @@ export default function AdminDashboard() {
     }
   };
 
+  // --- FUNCIÓN PARA REHABILITAR ---
   const handleEstadoUsuario = async (userId: string, nuevoEstado: string, motivo: string | null = null) => {
+
+    // 1. ACTUALIZACIÓN VISUAL INSTANTÁNEA (Esto hace que el botón y el texto cambien al instante)
+    setUsuarios(prevUsuarios => prevUsuarios.map(u =>
+      u.id === userId
+        ? { ...u, estado_cuenta: nuevoEstado, infracciones: nuevoEstado === 'activo' ? 0 : u.infracciones, motivo_estado: motivo }
+        : u
+    ));
+
+    try {
+      const updateData: any = {
+        estado_cuenta: nuevoEstado,
+        motivo_estado: motivo
+      };
+
+      if (nuevoEstado === 'activo') updateData.infracciones = 0;
+
+      const { error } = await supabase.from('perfiles').update(updateData).eq('id', userId);
+
+      if (error) throw error;
+
+      mostrarNotificacion('Cuenta rehabilitada. Infracciones reiniciadas a 0.', 'exito');
+      setModalUsuario(null);
+      setMotivoSuspension('');
+
+    } catch (error: any) {
+      mostrarNotificacion("Error al actualizar estado", "error");
+      fetchUsuarios(); // Si falla la base de datos, regresamos la pantalla a la normalidad
+    }
+  };
+
+  // --- FUNCIÓN PARA SANCIONAR ---
+  const registrarInfraccion = async (usuarioId: string, infraccionesActuales: number, motivoSancion: string) => {
+    const nuevasInfracciones = (infraccionesActuales || 0) + 1;
+    const esInactivo = nuevasInfracciones >= 3;
+    const motivoFinal = esInactivo
+      ? `Cuenta suspendida por acumular 3 infracciones. (Última falta: ${motivoSancion})`
+      : motivoSancion;
+
+    // 1. ACTUALIZACIÓN VISUAL INSTANTÁNEA (Esto suma los números en vivo sin esperar)
+    setUsuarios(prevUsuarios => prevUsuarios.map(u =>
+      u.id === usuarioId
+        ? { ...u, infracciones: nuevasInfracciones, estado_cuenta: esInactivo ? 'inactivo' : 'activo', motivo_estado: esInactivo ? motivoFinal : null }
+        : u
+    ));
+
     try {
       const { error } = await supabase
         .from('perfiles')
         .update({
-          estado_cuenta: nuevoEstado,
-          motivo_estado: motivo // <-- Guarda o borra el motivo
+          infracciones: nuevasInfracciones,
+          estado_cuenta: esInactivo ? 'inactivo' : 'activo',
+          motivo_estado: esInactivo ? motivoFinal : null
         })
-        .eq('id', userId);
+        .eq('id', usuarioId);
 
       if (error) throw error;
-      mostrarNotificacion(`Usuario marcado como ${nuevoEstado === 'inactivo' ? 'suspendido' : 'activo'}`, 'exito');
 
-      // Limpiar y cerrar modal si estaba abierto
+      mostrarNotificacion(esInactivo ? "Usuario suspendido (Límite de infracciones)" : `Infracción registrada (Faltan ${3 - nuevasInfracciones} para suspensión)`, "exito");
       setModalUsuario(null);
       setMotivoSuspension('');
-      fetchUsuarios();
-    } catch (error: any) {
-      console.error("Error:", error);
-      mostrarNotificacion("Error al actualizar estado del usuario", "error");
+
+    } catch (error) {
+      mostrarNotificacion("Error al registrar la infracción", "error");
+      fetchUsuarios(); // Si falla la base de datos, regresamos la pantalla a la normalidad
     }
   };
 
-  // ... (tu useEffect se queda igual)
-
-  // Cargar usuarios cuando se abra la pestaña
   useEffect(() => {
     if (activeTab === 'users') fetchUsuarios();
   }, [activeTab]);
@@ -321,6 +333,94 @@ export default function AdminDashboard() {
         <button onClick={() => setActiveTab('loans')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'loans' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Ver Préstamos Solicitados</button>
         <button onClick={() => setActiveTab('users')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'users' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Control de Usuarios</button>
       </div>
+
+      {/* TABLA DE INVENTARIO */}
+      {activeTab === 'inventory' && (
+        <div className="flex justify-center">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden w-full">
+            <div className="p-8 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-800">Inventario de Libros</h3>
+                  <p className="text-sm text-gray-500 mt-1">Total de libros: {libros.length}</p>
+                </div>
+              </div>
+            </div>
+
+            {libros.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-8 py-4 font-semibold text-gray-700">Título</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700">Autor</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700">Categoría / Origen</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Stock</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Estado</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {libros.map((libro) => (
+                      <tr key={libro.id} className={`hover:bg-gray-50 transition-colors ${libro.estado_libro === 'inactivo' ? 'bg-gray-50/70 opacity-60' : ''}`}>
+                        <td className="px-8 py-4 font-bold text-gray-800">
+                          {libro.titulo}
+                          {libro.estado_libro === 'inactivo' && (
+                            <span className="ml-2 inline-block px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-[9px] font-black uppercase tracking-wider">
+                              Oculto
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-8 py-4 text-gray-600">{libro.autor}</td>
+                        <td className="px-8 py-4">
+                          <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium mb-1">
+                            {libro.categoria}
+                          </span>
+                          <br />
+                          <span className="text-[10px] font-bold text-gray-400 uppercase">
+                            Origen: {libro.procedencia || 'Comprado'}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4 text-center">
+                          <p className="font-bold text-gray-800">{libro.disponibles}/{libro.cantidad}</p>
+                          <p className="text-xs text-gray-400">disponibles</p>
+                        </td>
+                        <td className="px-8 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${libro.disponibles > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {libro.disponibles > 0 ? (
+                              <><CheckCircleIcon size={16} weight="bold" /> Disponible</>
+                            ) : (
+                              <><XCircleIcon size={16} weight="bold" /> Agotado</>
+                            )}
+                          </span>
+                        </td>
+
+                        {/* NUEVA CELDA DE ACCIÓN */}
+                        <td className="px-8 py-4 text-center">
+                          <button
+                            onClick={() => handleToggleEstadoLibro(libro.id, libro.estado_libro || 'activo')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer ${libro.estado_libro === 'inactivo'
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                          >
+                            {libro.estado_libro === 'inactivo' ? 'Activar' : 'Desactivar'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                <p className="text-lg">No hay libros en el inventario</p>
+                <p className="text-sm">Comienza registrando un nuevo libro o importando desde CSV</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mb-8 flex justify-center">
         {/* TAB: REGISTRAR LIBRO */}
@@ -568,92 +668,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TABLA DE INVENTARIO */}
-      {activeTab === 'inventory' && (
-        <div className="flex justify-center">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden w-full">
-            <div className="p-8 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-800">Inventario de Libros</h3>
-                  <p className="text-sm text-gray-500 mt-1">Total de libros: {libros.length}</p>
-                </div>
-              </div>
-            </div>
-
-            {libros.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-100">
-                      <th className="px-8 py-4 font-semibold text-gray-700">Título</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700">Autor</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700">Categoría / Origen</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Stock</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Estado</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {libros.map((libro) => (
-                      <tr key={libro.id} className={`hover:bg-gray-50 transition-colors ${libro.estado_libro === 'inactivo' ? 'bg-gray-50/70 opacity-60' : ''}`}>
-                        <td className="px-8 py-4 font-bold text-gray-800">
-                          {libro.titulo}
-                          {libro.estado_libro === 'inactivo' && (
-                            <span className="ml-2 inline-block px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-[9px] font-black uppercase tracking-wider">
-                              Oculto
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-8 py-4 text-gray-600">{libro.autor}</td>
-                        <td className="px-8 py-4">
-                          <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium mb-1">
-                            {libro.categoria}
-                          </span>
-                          <br />
-                          <span className="text-[10px] font-bold text-gray-400 uppercase">
-                            Origen: {libro.procedencia || 'Comprado'}
-                          </span>
-                        </td>
-                        <td className="px-8 py-4 text-center">
-                          <p className="font-bold text-gray-800">{libro.disponibles}/{libro.cantidad}</p>
-                          <p className="text-xs text-gray-400">disponibles</p>
-                        </td>
-                        <td className="px-8 py-4 text-center">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${libro.disponibles > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {libro.disponibles > 0 ? (
-                              <><CheckCircleIcon size={16} weight="bold" /> Disponible</>
-                            ) : (
-                              <><XCircleIcon size={16} weight="bold" /> Agotado</>
-                            )}
-                          </span>
-                        </td>
-                        {/* NUEVA CELDA DE ACCIÓN */}
-                        <td className="px-8 py-4 text-center">
-                          <button
-                            onClick={() => handleToggleEstadoLibro(libro.id, libro.estado_libro || 'activo')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer ${libro.estado_libro === 'inactivo'
-                                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                              }`}
-                          >
-                            {libro.estado_libro === 'inactivo' ? 'Activar' : 'Desactivar'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-8 text-center text-gray-500">
-                <p className="text-lg">No hay libros en el inventario</p>
-                <p className="text-sm">Comienza registrando un nuevo libro o importando desde CSV</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      
 
 
       {/* TAB: CONTROL DE USUARIOS */}
@@ -761,7 +776,7 @@ export default function AdminDashboard() {
                         ) : (
                           <button
                             onClick={() => setModalUsuario({ id: usuario.id, nombre: usuario.nombre_completo, infracciones: usuario.infracciones || 0 })}
-                            className="px-4 py-2 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                            className="px-4 py-2 bg-gray-100 text-black rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                           >
                             Sancionar
                           </button>
