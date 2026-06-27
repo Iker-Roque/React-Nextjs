@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { manejarCambioDni } from '@/lib/validaciones';
 import { supabase } from '@/lib/supabaseClient';
 import { EyeIcon , EyeSlashIcon } from '@phosphor-icons/react';
 
@@ -14,6 +15,7 @@ const Login: React.FC = () => {
   const [dni, setDni] = useState('');
   const [password, setPassword] = useState('');
   const [errorMensaje, setErrorMensaje] = useState('');
+  const [exitoMensaje, setExitoMensaje] = useState('');
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
   // Ocultar Barra de Navegacion en Login y Registro
@@ -61,17 +63,24 @@ const Login: React.FC = () => {
           }
         });
         if (error) throw error;
-        router.push('/');
+        
+        setExitoMensaje('¡Registro exitoso! Redirigiendo...'); // Mensaje de registro
+
       } else {
         // FLUJO DE LOGIN
         const { error } = await supabase.auth.signInWithPassword({
           email: correoFinal,
           password: password,
         });
-
         if (error) throw error;
-        router.push('/');
+        
+        setExitoMensaje('¡Inicio de sesión exitoso! Redirigiendo...'); // Mensaje de login
       }
+
+      // ESPERA 2 SEGUNDOS Y REDIRIGE (Aplica para ambos)
+      setTimeout(() => {
+        router.push('/');
+      }, 2000);
 
     } catch (error: any) {
       const mensajeVieneDeSupabase = error.message?.toLowerCase() || "";
@@ -130,9 +139,17 @@ const Login: React.FC = () => {
             </p>
           </div>
 
+
+          {/* ALERTAS */}
           {errorMensaje && (
             <div className="mb-4 p-3 bg-red-100 text-red-600 rounded-xl text-sm text-center">
               {errorMensaje}
+            </div>
+          )}
+          
+          {exitoMensaje && (
+            <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded-xl text-sm text-center font-bold animate-pulse">
+              {exitoMensaje}
             </div>
           )}
 
@@ -151,7 +168,7 @@ const Login: React.FC = () => {
               type="text"
               placeholder="Número de DNI"
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={(e) => manejarCambioDni(e, setDni, setErrorMensaje)}
               maxLength={8}
               className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm"
             />

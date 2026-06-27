@@ -10,6 +10,7 @@ export default function AdminDashboard() {
   const [importLoading, setImportLoading] = useState(false);
   const [importMessage, setImportMessage] = useState('');
   const [busquedaId, setBusquedaId] = useState('');
+  const [busquedaInventario, setBusquedaInventario] = useState('');
   const [activeTab, setActiveTab] = useState<'register' | 'import' | 'inventory' | 'loans' | 'users'>('inventory');
 
 
@@ -305,10 +306,10 @@ export default function AdminDashboard() {
   }, [activeTab]);
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
       {/* HEADER */}
-      <div className="mb-8">
-        <h2 className="text-4xl font-bold text-lib-dark mb-2">Panel de Administración</h2>
+      <div className="mb-4">
+        <h2 className="text-3xl font-bold text-lib-dark mb-2">Panel de Administración</h2>
         <p className="text-gray-500">Gestiona tu catálogo de libros de forma eficiente</p>
       </div>
 
@@ -336,79 +337,113 @@ export default function AdminDashboard() {
 
       {/* TABLA DE INVENTARIO */}
       {activeTab === 'inventory' && (
-        <div className="flex justify-center">
+        <div className="mb-8 flex justify-center w-full">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden w-full">
             <div className="p-8 border-b border-gray-100">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-800">Inventario de Libros</h3>
                   <p className="text-sm text-gray-500 mt-1">Total de libros: {libros.length}</p>
                 </div>
+                {/* BARRA DE BÚSQUEDA */}
+                <input
+                  type="text"
+                  placeholder="Buscar por Título o Autor..."
+                  value={busquedaInventario}
+                  onChange={(e) => setBusquedaInventario(e.target.value)}
+                  className="w-full md:max-w-xs p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark text-sm"
+                />
               </div>
             </div>
+
+
 
             {libros.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      <th className="px-8 py-4 font-semibold text-gray-700">Título</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700">Autor</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700">Categoría / Origen</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Stock</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Estado</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Acciones</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 w-[30%]">Título</th> 
+                      <th className="px-8 py-4 font-semibold text-gray-700 w-[20%]">Autor</th>  
+                      <th className="px-8 py-4 font-semibold text-gray-700 w-[20%]">Categoría / Origen</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center w-[10%]">Stock</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center w-[10%]">Estado</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center w-[10%]">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {libros.map((libro) => (
-                      <tr key={libro.id} className={`hover:bg-gray-50 transition-colors ${libro.estado_libro === 'inactivo' ? 'bg-gray-50/70 opacity-60' : ''}`}>
-                        <td className="px-8 py-4 font-bold text-gray-800">
-                          {libro.titulo}
-                          {libro.estado_libro === 'inactivo' && (
-                            <span className="ml-2 inline-block px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-[9px] font-black uppercase tracking-wider">
-                              Oculto
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-8 py-4 text-gray-600">{libro.autor}</td>
-                        <td className="px-8 py-4">
-                          <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium mb-1">
-                            {libro.categoria}
-                          </span>
-                          <br />
-                          <span className="text-[10px] font-bold text-gray-400 uppercase">
-                            Origen: {libro.procedencia || 'Comprado'}
-                          </span>
-                        </td>
-                        <td className="px-8 py-4 text-center">
-                          <p className="font-bold text-gray-800">{libro.disponibles}/{libro.cantidad}</p>
-                          <p className="text-xs text-gray-400">disponibles</p>
-                        </td>
-                        <td className="px-8 py-4 text-center">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${libro.disponibles > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {libro.disponibles > 0 ? (
-                              <><CheckCircleIcon size={16} weight="bold" /> Disponible</>
-                            ) : (
-                              <><XCircleIcon size={16} weight="bold" /> Agotado</>
-                            )}
-                          </span>
-                        </td>
 
-                        {/* NUEVA CELDA DE ACCIÓN */}
-                        <td className="px-8 py-4 text-center">
-                          <button
-                            onClick={() => handleToggleEstadoLibro(libro.id, libro.estado_libro || 'activo')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer ${libro.estado_libro === 'inactivo'
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                              }`}
-                          >
-                            {libro.estado_libro === 'inactivo' ? 'Activar' : 'Desactivar'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-50">
+                    {/* FILTRO DE BÚSQUEDA APLICADO AQUÍ */}
+                    {libros
+                      .filter(libro =>
+                        busquedaInventario === '' ||
+                        (libro.titulo && libro.titulo.toLowerCase().includes(busquedaInventario.toLowerCase())) ||
+                        (libro.autor && libro.autor.toLowerCase().includes(busquedaInventario.toLowerCase()))
+                      )
+                      .map((libro) => (
+                        <tr key={libro.id} className={`hover:bg-gray-50 transition-colors ${libro.estado_libro === 'inactivo' ? 'bg-gray-50/70 opacity-60' : ''}`}>
+                          <td className="px-8 py-4 font-bold text-gray-800">
+                            {libro.titulo}
+                            {libro.estado_libro === 'inactivo' && (
+                              <span className="ml-2 inline-block px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-[9px] font-black uppercase tracking-wider">
+                                Oculto
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-8 py-4 text-gray-600">{libro.autor}</td>
+                          <td className="px-8 py-4">
+                            <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium mb-1">
+                              {libro.categoria}
+                            </span>
+                            <br />
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">
+                              Origen: {libro.procedencia || 'Comprado'}
+                            </span>
+                          </td>
+                          <td className="px-8 py-4 text-center">
+                            <p className="font-bold text-gray-800">{libro.disponibles}/{libro.cantidad}</p>
+                            <p className="text-xs text-gray-400">disponibles</p>
+                          </td>
+                          <td className="px-8 py-4 text-center">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${libro.disponibles > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {libro.disponibles > 0 ? (
+                                <><CheckCircleIcon size={16} weight="bold" /> Disponible</>
+                              ) : (
+                                <><XCircleIcon size={16} weight="bold" /> Agotado</>
+                              )}
+                            </span>
+                          </td>
+
+                          <td className="px-8 py-4 text-center">
+                            <button
+                              onClick={() => handleToggleEstadoLibro(libro.id, libro.estado_libro || 'activo')}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer ${libro.estado_libro === 'inactivo'
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                              {libro.estado_libro === 'inactivo' ? 'Activar' : 'Desactivar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+
+                    {/* MENSAJE SI LA BÚSQUEDA NO ENCUENTRA NADA */}
+                    {libros.filter(libro =>
+                      busquedaInventario === '' ||
+                      (libro.titulo && libro.titulo.toLowerCase().includes(busquedaInventario.toLowerCase())) ||
+                      (libro.autor && libro.autor.toLowerCase().includes(busquedaInventario.toLowerCase()))
+                    ).length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                            <div className="flex flex-col items-center justify-center">
+                              <MagnifyingGlassIcon size={48} weight="light" className="text-gray-400 mb-3" />
+                              <p className="text-base font-bold text-gray-800">No se encontraron libros</p>
+                              <p className="text-sm text-gray-600 mt-1">No hay resultados para "{busquedaInventario}"</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                   </tbody>
                 </table>
               </div>
@@ -422,9 +457,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="mb-8 flex justify-center">
         {/* TAB: REGISTRAR LIBRO */}
         {activeTab === 'register' && (
+          <div className="mb-8 flex justify-center w-full">
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-2xl w-full">
             <h3 className="text-2xl font-bold mb-6 text-gray-800">Registrar Nuevo Libro</h3>
             <form onSubmit={handleAgregarLibro} className="space-y-5">
@@ -519,10 +554,12 @@ export default function AdminDashboard() {
               </button>
             </form>
           </div>
+          </div>
         )}
 
         {/* TAB: IMPORTAR CSV */}
         {activeTab === 'import' && (
+          <div className="mb-8 flex justify-center w-full">
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-2xl w-full">
             <h3 className="text-2xl font-bold mb-6 text-gray-800">Importar Libros desde CSV</h3>
 
@@ -552,12 +589,14 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+          </div>
         )}
-      </div>
 
       {/* TAB: VER PRÉSTAMOS (Buscador y Botón de Acción) */}
       {activeTab === 'loans' && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden mb-8">
+        <div className='flex justify-center w-full'>
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 overflow-hidden w-full">
+          
 
           {/* CABECERA CON BUSCADOR */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -585,6 +624,8 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4 font-semibold text-gray-700 text-center">Acciones</th>
                   </tr>
                 </thead>
+
+                {/*Barra de busqueda*/}
                 <tbody className="divide-y divide-gray-50">
                   {(() => {
                     const filtrados = allPrestamos.filter(p =>
@@ -666,13 +707,12 @@ export default function AdminDashboard() {
             <p className="text-gray-500 text-center py-4">No hay solicitudes de préstamos registradas del sistema.</p>
           )}
         </div>
+        </div>
       )}
-
-      
-
 
       {/* TAB: CONTROL DE USUARIOS */}
       {activeTab === 'users' && (
+        <div className='flex justify-center w-full'>
         <div className="relative bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden mb-8">
 
           {/* VENTANA EMERGENTE (MODAL) DE INFRACCIÓN */}
@@ -787,6 +827,7 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       )}
     </div>
