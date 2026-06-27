@@ -31,8 +31,11 @@ const Home: React.FC = () => {
                 const data = await response.json();
 
                 if (isMounted) {
-                    // Extrae únicamente los primeros 8 libros para la vista de inicio
-                    setLibros(data.slice(0, 8)); 
+                    //Filtramos para quitar los libros inactivos/ocultos
+                    const librosActivos = data.filter((libro: any) => libro.estado_libro !== 'inactivo');
+                    
+                    //Extrae únicamente los primeros 8 libros ACTIVOS para la vista de inicio
+                    setLibros(librosActivos.slice(0, 8)); 
                 }
 
             } catch (error) {

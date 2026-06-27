@@ -11,7 +11,7 @@ export function usePerfil() {
         if (session?.user) {
           const { data } = await supabase
             .from('perfiles')
-            .select('estado_cuenta, motivo_estado')
+            .select('estado_cuenta, motivo_estado, infracciones')
             .eq('id', session.user.id)
             .single();
           

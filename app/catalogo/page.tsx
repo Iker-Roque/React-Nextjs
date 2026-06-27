@@ -56,6 +56,8 @@ export default function CatalogoPage() {
   }, [libros]);
 
   const librosFiltrados = libros.filter(libro => {
+
+    if (libro.estado_libro === 'inactivo') return false;
     const titulo = libro.titulo ? String(libro.titulo).toLowerCase() : '';
     const autor = libro.autor ? String(libro.autor).toLowerCase() : '';
     const busquedaMinuscula = busqueda.toLowerCase();

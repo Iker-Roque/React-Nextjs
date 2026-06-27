@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, FolderOpenIcon, ClipboardTextIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, FolderOpenIcon, ClipboardTextIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
 export default function AdminDashboard() {
   const [libros, setLibros] = useState<any[]>([]);
@@ -11,7 +11,7 @@ export default function AdminDashboard() {
   const [importMessage, setImportMessage] = useState('');
   const [busquedaId, setBusquedaId] = useState('');
   const [activeTab, setActiveTab] = useState<'register' | 'import' | 'inventory' | 'loans' | 'users'>('inventory');
-  
+
 
   const [form, setForm] = useState({
     titulo: '',
@@ -114,6 +114,41 @@ export default function AdminDashboard() {
     return data;
   };
 
+  //Funcion de sancion
+
+  // Función que suma la infracción y suspende si llega a 3
+  const registrarInfraccion = async (usuarioId: string, infraccionesActuales: number, motivoSancion: string) => {
+    const nuevasInfracciones = (infraccionesActuales || 0) + 1;
+    const esInactivo = nuevasInfracciones >= 3;
+    const motivoFinal = esInactivo
+      ? `Cuenta suspendida por acumular 3 infracciones. (Última falta: ${motivoSancion})`
+      : motivoSancion;
+
+    try {
+      const { error } = await supabase
+        .from('perfiles')
+        .update({
+          infracciones: nuevasInfracciones,
+          estado_cuenta: esInactivo ? 'inactivo' : 'activo',
+          motivo_estado: esInactivo ? motivoFinal : null
+        })
+        .eq('id', usuarioId);
+
+      if (error) throw error;
+
+      mostrarNotificacion(esInactivo ? "Usuario suspendido (Límite de infracciones)" : "Infracción registrada (Faltan " + (3 - nuevasInfracciones) + " para suspensión)", "exito");
+      setModalUsuario(null);
+      setMotivoSuspension('');
+      fetchUsuarios();
+    } catch (error) {
+      mostrarNotificacion("Error al registrar la infracción", "error");
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'users') fetchUsuarios();
+  }, [activeTab]);
+
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -188,10 +223,33 @@ export default function AdminDashboard() {
     }
   };
 
+  // Función para activar/desactivar la visibilidad de un libro
+  const handleToggleEstadoLibro = async (libroId: number, estadoActual: string) => {
+    const nuevoEstado = estadoActual === 'inactivo' ? 'activo' : 'inactivo';
+
+    try {
+      const { error } = await supabase
+        .from('libros')
+        .update({ estado_libro: nuevoEstado })
+        .eq('id', libroId);
+
+      if (error) throw error;
+
+      mostrarNotificacion(
+        `Libro ${nuevoEstado === 'activo' ? 'activado para el catálogo' : 'desactivado del catálogo'}`,
+        'exito'
+      );
+      fetchLibros(); // Recarga el inventario para ver los cambios
+    } catch (error: any) {
+      console.error("Error al cambiar estado del libro:", error);
+      mostrarNotificacion("Error al cambiar el estado del libro", "error");
+    }
+  };
+
   // --- CONTROL DE USUARIOS ---
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [busquedaUsuario, setBusquedaUsuario] = useState('');
-  const [modalUsuario, setModalUsuario] = useState<{ id: string, nombre: string } | null>(null);
+  const [modalUsuario, setModalUsuario] = useState<{ id: string, nombre: string, infracciones: number } | null>(null);
   const [motivoSuspension, setMotivoSuspension] = useState('');
 
   const fetchUsuarios = async () => {
@@ -208,7 +266,7 @@ export default function AdminDashboard() {
     try {
       const { error } = await supabase
         .from('perfiles')
-        .update({ 
+        .update({
           estado_cuenta: nuevoEstado,
           motivo_estado: motivo // <-- Guarda o borra el motivo
         })
@@ -216,7 +274,7 @@ export default function AdminDashboard() {
 
       if (error) throw error;
       mostrarNotificacion(`Usuario marcado como ${nuevoEstado === 'inactivo' ? 'suspendido' : 'activo'}`, 'exito');
-      
+
       // Limpiar y cerrar modal si estaba abierto
       setModalUsuario(null);
       setMotivoSuspension('');
@@ -532,14 +590,21 @@ export default function AdminDashboard() {
                       <th className="px-8 py-4 font-semibold text-gray-700">Autor</th>
                       <th className="px-8 py-4 font-semibold text-gray-700">Categoría / Origen</th>
                       <th className="px-8 py-4 font-semibold text-gray-700 text-center">Stock</th>
-                      <th className="px-8 py-4 font-semibold text-gray-700 text-right">Estado</th>
-
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Estado</th>
+                      <th className="px-8 py-4 font-semibold text-gray-700 text-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {libros.map((libro) => (
-                      <tr key={libro.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-8 py-4 font-bold text-gray-800">{libro.titulo}</td>
+                      <tr key={libro.id} className={`hover:bg-gray-50 transition-colors ${libro.estado_libro === 'inactivo' ? 'bg-gray-50/70 opacity-60' : ''}`}>
+                        <td className="px-8 py-4 font-bold text-gray-800">
+                          {libro.titulo}
+                          {libro.estado_libro === 'inactivo' && (
+                            <span className="ml-2 inline-block px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-[9px] font-black uppercase tracking-wider">
+                              Oculto
+                            </span>
+                          )}
+                        </td>
                         <td className="px-8 py-4 text-gray-600">{libro.autor}</td>
                         <td className="px-8 py-4">
                           <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium mb-1">
@@ -554,15 +619,26 @@ export default function AdminDashboard() {
                           <p className="font-bold text-gray-800">{libro.disponibles}/{libro.cantidad}</p>
                           <p className="text-xs text-gray-400">disponibles</p>
                         </td>
-                        <td className="px-8 py-4 text-right">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${libro.disponibles > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                            }`}>
+                        <td className="px-8 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${libro.disponibles > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                             {libro.disponibles > 0 ? (
                               <><CheckCircleIcon size={16} weight="bold" /> Disponible</>
                             ) : (
                               <><XCircleIcon size={16} weight="bold" /> Agotado</>
                             )}
                           </span>
+                        </td>
+                        {/* NUEVA CELDA DE ACCIÓN */}
+                        <td className="px-8 py-4 text-center">
+                          <button
+                            onClick={() => handleToggleEstadoLibro(libro.id, libro.estado_libro || 'activo')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer ${libro.estado_libro === 'inactivo'
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                          >
+                            {libro.estado_libro === 'inactivo' ? 'Activar' : 'Desactivar'}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -583,38 +659,42 @@ export default function AdminDashboard() {
       {/* TAB: CONTROL DE USUARIOS */}
       {activeTab === 'users' && (
         <div className="relative bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden mb-8">
-          
-          {/* VENTANA EMERGENTE (MODAL) DE SUSPENSIÓN */}
+
+          {/* VENTANA EMERGENTE (MODAL) DE INFRACCIÓN */}
           {modalUsuario && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm p-4">
               <div className="bg-white p-6 rounded-2xl shadow-2xl border border-red-100 w-full max-w-md animate-fade-in">
-                <h4 className="text-xl font-bold text-gray-800 mb-2">Suspender Cuenta</h4>
-                <p className="text-sm text-gray-600 mb-4">
-                  Desactivando acceso a: <span className="font-bold">{modalUsuario.nombre}</span>
+                <h4 className="text-xl font-bold text-gray-800 mb-2">Registrar Infracción</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Aplicando sanción a: <span className="font-bold">{modalUsuario.nombre}</span>
                 </p>
-                
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Motivo de la suspensión *</label>
+                <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-xs font-bold border border-yellow-200">
+                  Faltas actuales: {modalUsuario.infracciones} / 3
+                  {modalUsuario.infracciones === 2 && " (¡Advertencia: Esta falta suspenderá la cuenta!)"}
+                </div>
+
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Motivo de la falta *</label>
                 <textarea
                   autoFocus
-                  placeholder="Ej: Adeuda el libro El Quijote desde hace 2 meses..."
+                  placeholder="Ej: Devolvió el libro con retraso de 3 días..."
                   value={motivoSuspension}
                   onChange={(e) => setMotivoSuspension(e.target.value)}
                   className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500 text-sm mb-4 resize-none h-24"
                 />
-                
+
                 <div className="flex gap-3 justify-end">
-                  <button 
+                  <button
                     onClick={() => { setModalUsuario(null); setMotivoSuspension(''); }}
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors cursor-pointer"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     disabled={motivoSuspension.trim() === ''}
-                    onClick={() => handleEstadoUsuario(modalUsuario.id, 'inactivo', motivoSuspension)}
+                    onClick={() => registrarInfraccion(modalUsuario.id, modalUsuario.infracciones, motivoSuspension.trim())}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                   >
-                    Confirmar Suspensión
+                    Registrar Falta
                   </button>
                 </div>
               </div>
@@ -638,7 +718,7 @@ export default function AdminDashboard() {
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-6 py-4 font-semibold text-gray-700">Nombre Completo</th>
                   <th className="px-6 py-4 font-semibold text-gray-700">DNI</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700">Rol</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 text-center">Numero de Sanciones</th>
                   <th className="px-6 py-4 font-semibold text-gray-700">Estado de Cuenta</th>
                   <th className="px-6 py-4 font-semibold text-gray-700 text-center">Acción</th>
                 </tr>
@@ -651,18 +731,18 @@ export default function AdminDashboard() {
                     <tr key={usuario.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-bold text-gray-800">{usuario.nombre_completo || 'Sin nombre'}</td>
                       <td className="px-6 py-4 text-gray-600 font-mono">{usuario.dni || 'N/A'}</td>
-                      <td className="px-6 py-4 text-gray-600 capitalize">{usuario.rol || 'alumno'}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="font-bold text-gray-700">{usuario.infracciones || 0} / 3</span>
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col items-start gap-1">
-                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                            usuario.estado_cuenta === 'inactivo' 
-                              ? 'bg-red-100 text-red-700 border border-red-200' 
-                              : 'bg-green-100 text-green-700 border border-green-200'
-                          }`}>
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${usuario.estado_cuenta === 'inactivo'
+                            ? 'bg-red-100 text-red-700 border border-red-200'
+                            : 'bg-green-100 text-green-700 border border-green-200'
+                            }`}>
                             {usuario.estado_cuenta === 'inactivo' ? 'Suspendido' : 'Activo'}
                           </span>
-                          
-                          {/* Muestra el motivo si está suspendido */}
+
                           {usuario.estado_cuenta === 'inactivo' && usuario.motivo_estado && (
                             <span className="text-[10px] text-red-600 font-semibold max-w-45 leading-tight">
                               Motivo: {usuario.motivo_estado}
@@ -676,14 +756,14 @@ export default function AdminDashboard() {
                             onClick={() => handleEstadoUsuario(usuario.id, 'activo', null)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                           >
-                            Habilitar Cuenta
+                            Rehabilitar Cuenta
                           </button>
                         ) : (
                           <button
-                            onClick={() => setModalUsuario({ id: usuario.id, nombre: usuario.nombre_completo })}
-                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                            onClick={() => setModalUsuario({ id: usuario.id, nombre: usuario.nombre_completo, infracciones: usuario.infracciones || 0 })}
+                            className="px-4 py-2 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                           >
-                            Suspender
+                            Sancionar
                           </button>
                         )}
                       </td>
