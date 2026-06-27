@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, FolderOpenIcon, ClipboardTextIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, FolderOpenIcon, ClipboardTextIcon, WarningCircleIcon, ShieldCheckIcon, UserCircleIcon } from "@phosphor-icons/react";
 
 export default function AdminDashboard() {
   const [libros, setLibros] = useState<any[]>([]);
@@ -11,7 +11,7 @@ export default function AdminDashboard() {
   const [importMessage, setImportMessage] = useState('');
   const [busquedaId, setBusquedaId] = useState('');
   const [busquedaInventario, setBusquedaInventario] = useState('');
-  const [activeTab, setActiveTab] = useState<'register' | 'import' | 'inventory' | 'loans' | 'users'>('inventory');
+  const [activeTab, setActiveTab] = useState<'register' | 'import' | 'inventory' | 'loans' | 'users' | 'roles'>('inventory');
 
 
   const [form, setForm] = useState({
@@ -305,6 +305,29 @@ export default function AdminDashboard() {
     if (activeTab === 'users') fetchUsuarios();
   }, [activeTab]);
 
+  // --- GESTIÓN DE ROLES ---
+  const [busquedaRoles, setBusquedaRoles] = useState('');
+  const [rolLoading, setRolLoading] = useState<string | null>(null);
+
+  const handleCambiarRol = async (userId: string, nuevoRol: string) => {
+    setRolLoading(userId);
+    setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, rol: nuevoRol } : u));
+    try {
+      const { error } = await supabase.from('perfiles').update({ rol: nuevoRol }).eq('id', userId);
+      if (error) throw error;
+      mostrarNotificacion(`Rol cambiado a "${nuevoRol}" correctamente`, 'exito');
+    } catch (error: any) {
+      mostrarNotificacion("Error al cambiar el rol", "error");
+      fetchUsuarios();
+    } finally {
+      setRolLoading(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'roles') fetchUsuarios();
+  }, [activeTab]);
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
       {/* HEADER */}
@@ -333,6 +356,7 @@ export default function AdminDashboard() {
         <button onClick={() => setActiveTab('import')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'import' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Importar CSV</button>
         <button onClick={() => setActiveTab('loans')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'loans' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Ver Préstamos Solicitados</button>
         <button onClick={() => setActiveTab('users')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'users' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Control de Usuarios</button>
+        <button onClick={() => setActiveTab('roles')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'roles' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Gestión de Roles</button>
       </div>
 
       {/* TABLA DE INVENTARIO */}
@@ -828,6 +852,88 @@ export default function AdminDashboard() {
             </table>
           </div>
         </div>
+        </div>
+      )}
+      {/* TAB: GESTIÓN DE ROLES */}
+      {activeTab === 'roles' && (
+        <div className="mb-8 flex justify-center w-full">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-800">Gestión de Roles</h3>
+                <p className="text-sm text-gray-500 mt-1">Asigna o cambia el rol de cada usuario registrado</p>
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar por Nombre o DNI..."
+                value={busquedaRoles}
+                onChange={(e) => setBusquedaRoles(e.target.value)}
+                className="w-full md:max-w-xs p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark text-sm"
+              />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-6 py-4 font-semibold text-gray-700">Nombre Completo</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700">DNI</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-center">Rol Actual</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-center">Cambiar Rol</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {usuarios
+                    .filter(u =>
+                      busquedaRoles === '' ||
+                      u.dni?.includes(busquedaRoles) ||
+                      u.nombre_completo?.toLowerCase().includes(busquedaRoles.toLowerCase())
+                    )
+                    .map((usuario) => (
+                      <tr key={usuario.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            {usuario.rol === 'admin'
+                              ? <ShieldCheckIcon size={18} weight="fill" className="text-lib-dark" />
+                              : <UserCircleIcon size={18} weight="fill" className="text-gray-400" />
+                            }
+                            <span className="font-bold text-gray-800">{usuario.nombre_completo || 'Sin nombre'}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-600 font-mono">{usuario.dni || 'N/A'}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                            usuario.rol === 'admin'
+                              ? 'bg-lib-dark text-white'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {usuario.rol || 'user'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              disabled={usuario.rol === 'admin' || rolLoading === usuario.id}
+                              onClick={() => handleCambiarRol(usuario.id, 'admin')}
+                              className="px-3 py-1.5 bg-lib-dark text-white rounded-lg text-xs font-bold hover:bg-opacity-90 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              {rolLoading === usuario.id ? '...' : 'Hacer Admin'}
+                            </button>
+                            <button
+                              disabled={usuario.rol !== 'admin' || rolLoading === usuario.id}
+                              onClick={() => handleCambiarRol(usuario.id, 'user')}
+                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              {rolLoading === usuario.id ? '...' : 'Quitar Admin'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>

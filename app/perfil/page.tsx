@@ -18,7 +18,6 @@ export default function PerfilUsuario() {
     const [mostrarPass, setMostrarPass] = useState(false);
     const [mostrarConfirm, setMostrarConfirm] = useState(false);
 
-
     const [alerta, setAlerta] = useState<{ tipo: 'exito' | 'error', texto: string } | null>(null);
     // Estado que controla qué panel se muestra a la derecha
     const [pestañaActiva, setPestañaActiva] = useState<'activos' | 'historial' | 'ajustes'>('activos');

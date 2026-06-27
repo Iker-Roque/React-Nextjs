@@ -71,7 +71,7 @@ const Navbar: React.FC = () => {
       : "text-gray-500 hover:text-lib-dark transition-colors cursor-pointer font-medium";
   };
 
-  const esAdmin = rolReal === 'administrador' || usuario?.email === ADMIN_EMAIL;
+  const esAdmin = rolReal === 'admin' || usuario?.email === ADMIN_EMAIL;
 
   
 
@@ -105,9 +105,6 @@ const Navbar: React.FC = () => {
           )}
         </ul>
       </div>
-
-
-      
 
       {/* Sección de Usuario */}
       <div className="flex items-center gap-6">
