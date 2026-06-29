@@ -679,14 +679,30 @@ export default function AdminDashboard() {
 
                       return (
                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 font-bold text-gray-900">#{p.id}</td>
+                          <td className="px-6 py-4">
+                            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-mono font-bold">
+                              #{p.id}
+                            </span>
+                          </td>
                           <td className="px-6 py-4">
                             <p className="font-bold text-gray-800">{p.libro?.titulo || 'Libro desconocido'}</p>
-                            <p className="text-xs text-gray-500">ID: {p.libro?.id || p.libroId}</p>
+                            <span className="inline-block mt-0.5 px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-mono font-bold">
+                              #{p.libro?.id || p.libroId}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 font-mono text-gray-600">{p.dni_usuario}</td>
-                          <td className="px-6 py-4 text-gray-600">{new Date(p.fecha_prestamo).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 text-gray-600">{p.fecha_vencimiento ? new Date(p.fecha_vencimiento).toLocaleDateString() : 'N/A'}</td>
+                          <td className="px-6 py-4">
+                            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono font-bold">
+                              {p.dni_usuario}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-700">{new Date(p.fecha_prestamo).toLocaleDateString()}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className={`text-sm font-semibold ${p.fecha_vencimiento && new Date() > new Date(p.fecha_vencimiento) && p.estado === 'prestado' ? 'text-red-600' : 'text-gray-700'}`}>
+                              {p.fecha_vencimiento ? new Date(p.fecha_vencimiento).toLocaleDateString() : 'N/A'}
+                            </p>
+                          </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1 items-start">
                               <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${p.estado === 'solicitado' ? 'bg-yellow-100 text-yellow-700' :
