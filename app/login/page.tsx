@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { manejarCambioDni } from '@/lib/validaciones';
 import { supabase } from '@/lib/supabaseClient';
+import { EyeIcon, EyeSlashIcon } from '@phosphor-icons/react';
 
 const Login: React.FC = () => {
   const router = useRouter();
@@ -13,12 +15,14 @@ const Login: React.FC = () => {
   const [dni, setDni] = useState('');
   const [password, setPassword] = useState('');
   const [errorMensaje, setErrorMensaje] = useState('');
+  const [exitoMensaje, setExitoMensaje] = useState(''); // NUEVO: Estado para mensaje de éxito
+  const [mostrarPassword, setMostrarPassword] = useState(false);
 
   // Ocultar Barra de Navegacion en Login y Registro
   useEffect(() => {
     const navbar = document.querySelector('nav');
-    const sidebar = document.querySelector('aside'); // Por si también quieres ocultar el sidebar de la izquierda
-    
+    const sidebar = document.querySelector('aside');
+
     if (navbar) navbar.style.display = 'none';
     if (sidebar) sidebar.style.display = 'none';
 
@@ -30,7 +34,8 @@ const Login: React.FC = () => {
 
   const procesarFormulario = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setErrorMensaje(''); 
+    setErrorMensaje('');
+    setExitoMensaje('');
 
     // Validar Campos Vacíos
     if (!dni.trim() || !password.trim() || (isRegistro && !nombre.trim())) {
@@ -54,24 +59,33 @@ const Login: React.FC = () => {
             data: {
               nombre_completo: nombre,
               dni: dni,
-              rol: 'usuario' 
+              rol: 'usuario'
             }
           }
         });
         if (error) throw error;
-        router.push('/');
+
+        setExitoMensaje('¡Registro exitoso! Redirigiendo...');
+
       } else {
         // FLUJO DE LOGIN
         const { error } = await supabase.auth.signInWithPassword({
           email: correoFinal,
           password: password,
         });
-
         if (error) throw error;
-        router.push('/');
+
+        // NUEVO: Mensaje de éxito para el Login
+        setExitoMensaje('¡Inicio de sesión exitoso! Redirigiendo...');
       }
 
+      // TEMPORIZADOR COMPARTIDO: Aplica para ambos casos
+      setTimeout(() => {
+        router.push('/');
+      }, 2000); 
+
     } catch (error: any) {
+
       const mensajeVieneDeSupabase = error.message?.toLowerCase() || "";
 
       if (isRegistro) {
@@ -128,9 +142,16 @@ const Login: React.FC = () => {
             </p>
           </div>
 
+          {/* ALERTAS */}
           {errorMensaje && (
-            <div className="mb-4 p-3 bg-red-100 text-red-600 rounded-xl text-sm text-center">
+            <div className="mb-4 p-3 bg-red-100 text-red-600 border border-red-200 rounded-xl text-sm text-center">
               {errorMensaje}
+            </div>
+          )}
+
+          {exitoMensaje && (
+            <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded-xl text-sm text-center font-bold animate-pulse">
+              {exitoMensaje}
             </div>
           )}
 
@@ -141,7 +162,8 @@ const Login: React.FC = () => {
                 placeholder="Nombre Completo"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm"
+                disabled={!!exitoMensaje} // Deshabilita mientras redirige
+                className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm disabled:opacity-50"
               />
             )}
 
@@ -149,19 +171,30 @@ const Login: React.FC = () => {
               type="text"
               placeholder="Número de DNI"
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={(e) => manejarCambioDni(e, setDni, setErrorMensaje)}
               maxLength={8}
-              className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm"
+              disabled={!!exitoMensaje}
+              className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm disabled:opacity-50"
             />
 
-            <input
-              type="password"
-              placeholder="Contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm"
-            />
-
+            <div className="relative">
+              <input
+                type={mostrarPassword ? "text" : "password"}
+                placeholder="Contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={!!exitoMensaje}
+                className="w-full pl-5 pr-12 py-3.5 rounded-2xl bg-gray-50 border border-gray-200 outline-none focus:border-gray-400 focus:bg-white transition-all text-sm disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarPassword(!mostrarPassword)}
+                disabled={!!exitoMensaje}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer disabled:opacity-50"
+              >
+                {mostrarPassword ? <EyeSlashIcon size={22} /> : <EyeIcon size={22} />}
+              </button>
+            </div>
             {!isRegistro && (
               <div className="text-left pl-1">
                 <button
@@ -176,7 +209,8 @@ const Login: React.FC = () => {
 
             <button
               type="submit"
-              className="cursor-pointer w-full bg-lib-dark text-white py-3.5 rounded-2xl font-bold text-sm hover:opacity-90 transition-all shadow-md active:scale-95"
+              disabled={!!exitoMensaje} // Evita doble clic mientras espera
+              className="cursor-pointer w-full bg-lib-dark text-white py-3.5 rounded-2xl font-bold text-sm hover:opacity-90 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRegistro ? 'Registrarse' : 'Entrar'}
             </button>
@@ -184,7 +218,11 @@ const Login: React.FC = () => {
 
           <div className="mt-6 flex justify-between items-center border-t border-gray-100 pt-5">
             <button
-              onClick={() => { setErrorMensaje(''); router.push(isRegistro ? '/login' : '/registro'); }}
+              onClick={() => {
+                setErrorMensaje('');
+                setExitoMensaje('');
+                router.push(isRegistro ? '/login' : '/registro');
+              }}
               className="cursor-pointer text-[10px] font-black tracking-widest text-gray-400 hover:text-black transition-colors uppercase"
             >
               {isRegistro ? '¿Ya tienes cuenta? Inicia Sesión' : '¿No tienes cuenta? Regístrate'}

@@ -11,9 +11,12 @@ interface LibroProps {
   img: string;
   disp: number;
   genero: string;
+  perfil?: {
+    estado_cuenta: 'activo' | 'inactivo';
+  };
 }
 
-const CardLibro: React.FC<LibroProps> = ({ id, titulo, autor, img, disp, genero }) => {
+const CardLibro: React.FC<LibroProps> = ({ id, titulo, autor, img, disp, genero, perfil }) => {
   const [stock, setStock] = useState<number>(disp);
   const [procesando, setProcesando] = useState<boolean>(false);
   const [portadaFinal, setPortadaFinal] = useState<string>(img);
@@ -135,10 +138,19 @@ const CardLibro: React.FC<LibroProps> = ({ id, titulo, autor, img, disp, genero 
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 backdrop-blur-sm">
           <button
             onClick={handleSolicitarPrestamo}
-            disabled={procesando || stock <= 0}
-            className="cursor-pointer w-full bg-white text-lib-dark py-2.5 rounded-xl text-[10px] font-black uppercase shadow-xl hover:bg-lib-dark hover:text-white transition-colors mb-2 disabled:opacity-50"
+            disabled={procesando || stock <= 0 || perfil?.estado_cuenta === 'inactivo'}
+            className={`w-full py-2.5 rounded-xl text-[10px] font-black uppercase shadow-xl transition-colors mb-2 disabled:opacity-50 ${
+              perfil?.estado_cuenta === 'inactivo'
+                ? 'bg-gray-200 text-gray-400 shadow-none cursor-not-allowed hover:bg-gray-200 hover:text-gray-400'
+                : 'bg-white text-lib-dark hover:bg-lib-dark hover:text-white'
+            }`}
           >
-            {procesando ? 'Procesando...' : 'Solicitar Préstamo'}
+            {procesando 
+              ? 'Procesando...' 
+              : perfil?.estado_cuenta === 'inactivo' 
+                ? 'Acceso Restringido' 
+                : 'Solicitar Préstamo'
+            }
           </button>
         </div>
       </div>

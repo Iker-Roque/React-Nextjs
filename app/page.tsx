@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CardLibro from '@/app/components/CardLibro';
+import { usePerfil } from '@/app/hooks/usePerfil';
 import { ArrowRightIcon, ArrowDownIcon } from '@phosphor-icons/react';
 
 const Home: React.FC = () => {
@@ -11,6 +12,9 @@ const Home: React.FC = () => {
     // Estado para guardar los libros de la base de datos
     const [libros, setLibros] = useState<any[]>([]);
     const [cargando, setCargando] = useState(true);
+
+    //LLAMA AL HOOK CORRECTAMENTE:
+    const perfil = usePerfil();
 
     // Efecto para cargar los "Nuevos Libros" al entrar a la página
     useEffect(() => {
@@ -27,8 +31,11 @@ const Home: React.FC = () => {
                 const data = await response.json();
 
                 if (isMounted) {
-                    // Extrae únicamente los primeros 8 libros para la vista de inicio
-                    setLibros(data.slice(0, 8)); 
+                    //Filtramos para quitar los libros inactivos/ocultos
+                    const librosActivos = data.filter((libro: any) => libro.estado_libro !== 'inactivo');
+                    
+                    //Extrae únicamente los primeros 8 libros ACTIVOS para la vista de inicio
+                    setLibros(librosActivos.slice(0, 8)); 
                 }
 
             } catch (error) {
@@ -157,6 +164,7 @@ const Home: React.FC = () => {
                                     img={l.img || ""}
                                     disp={l.cantidad} 
                                     genero={l.categoria} 
+                                    perfil={perfil}
                                 />
                             ))
                         )}
