@@ -387,6 +387,7 @@ export default function AdminDashboard() {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-8 py-4 font-semibold text-gray-700 w-[5%] text-center">ID</th>
                       <th className="px-8 py-4 font-semibold text-gray-700 w-[30%]">Título</th> 
                       <th className="px-8 py-4 font-semibold text-gray-700 w-[20%]">Autor</th>  
                       <th className="px-8 py-4 font-semibold text-gray-700 w-[20%]">Categoría / Origen</th>
@@ -406,6 +407,9 @@ export default function AdminDashboard() {
                       )
                       .map((libro) => (
                         <tr key={libro.id} className={`hover:bg-gray-50 transition-colors ${libro.estado_libro === 'inactivo' ? 'bg-gray-50/70 opacity-60' : ''}`}>
+                          <td className="px-8 py-4 text-center">
+                            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-mono font-bold">#{libro.id}</span>
+                          </td>
                           <td className="px-8 py-4 font-bold text-gray-800">
                             {libro.titulo}
                             {libro.estado_libro === 'inactivo' && (
@@ -680,20 +684,14 @@ export default function AdminDashboard() {
                       return (
                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4">
-                            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-mono font-bold">
-                              #{p.id}
-                            </span>
+                            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-mono font-bold">#{p.id}</span>
                           </td>
                           <td className="px-6 py-4">
                             <p className="font-bold text-gray-800">{p.libro?.titulo || 'Libro desconocido'}</p>
-                            <span className="inline-block mt-0.5 px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-mono font-bold">
-                              #{p.libro?.id || p.libroId}
-                            </span>
+                            <span className="inline-block mt-0.5 px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-mono font-bold">#{p.libro?.id || p.libroId}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono font-bold">
-                              {p.dni_usuario}
-                            </span>
+                            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono font-bold">{p.dni_usuario}</span>
                           </td>
                           <td className="px-6 py-4">
                             <p className="text-sm font-semibold text-gray-700">{new Date(p.fecha_prestamo).toLocaleDateString()}</p>
@@ -825,9 +823,13 @@ export default function AdminDashboard() {
                   .map((usuario) => (
                     <tr key={usuario.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-bold text-gray-800">{usuario.nombre_completo || 'Sin nombre'}</td>
-                      <td className="px-6 py-4 text-gray-600 font-mono">{usuario.dni || 'N/A'}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono font-bold">{usuario.dni || 'N/A'}</span>
+                      </td>
                       <td className="px-6 py-4 text-center">
-                        <span className="font-bold text-gray-700">{usuario.infracciones || 0} / 3</span>
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${(usuario.infracciones || 0) >= 3 ? 'bg-red-100 text-red-700' : (usuario.infracciones || 0) > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {usuario.infracciones || 0} / 3
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col items-start gap-1">
@@ -916,7 +918,9 @@ export default function AdminDashboard() {
                             <span className="font-bold text-gray-800">{usuario.nombre_completo || 'Sin nombre'}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-gray-600 font-mono">{usuario.dni || 'N/A'}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono font-bold">{usuario.dni || 'N/A'}</span>
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${
                             usuario.rol === 'admin'
