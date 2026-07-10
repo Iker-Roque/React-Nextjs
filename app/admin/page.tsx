@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, FolderOpenIcon, ClipboardTextIcon, WarningCircleIcon, ShieldCheckIcon, UserCircleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, FolderOpenIcon, ClipboardTextIcon, WarningCircleIcon, ShieldCheckIcon, UserCircleIcon, BookOpenIcon, ClockCountdownIcon, TrendUpIcon, CaretDownIcon } from "@phosphor-icons/react";
 
 export default function AdminDashboard() {
   const [libros, setLibros] = useState<any[]>([]);
@@ -11,7 +11,13 @@ export default function AdminDashboard() {
   const [importMessage, setImportMessage] = useState('');
   const [busquedaId, setBusquedaId] = useState('');
   const [busquedaInventario, setBusquedaInventario] = useState('');
-  const [activeTab, setActiveTab] = useState<'register' | 'import' | 'inventory' | 'loans' | 'users' | 'roles'>('inventory');
+  const [activeTab, setActiveTab] = useState<'register' | 'import' | 'inventory' | 'loans' | 'users' | 'roles' | 'dashboard'>('inventory');
+
+  // --- DASHBOARD DE PRÉSTAMOS ---
+  const [dashMes, setDashMes] = useState<number | 'todos'>('todos');
+  const [dashAnio, setDashAnio] = useState<number | 'todos'>('todos');
+  const [isOpenDashMes, setIsOpenDashMes] = useState(false);
+  const [isOpenDashAnio, setIsOpenDashAnio] = useState(false);
 
 
   const [form, setForm] = useState({
@@ -46,7 +52,7 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab === 'loans') fetchAllPrestamos();
+    if (activeTab === 'loans' || activeTab === 'dashboard') fetchAllPrestamos();
   }, [activeTab]);
 
   useEffect(() => {
@@ -351,6 +357,7 @@ export default function AdminDashboard() {
 
       {/* TABS */}
       <div className="mb-8 flex gap-4 border-b border-gray-200">
+        <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'dashboard' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Dashboard</button>
         <button onClick={() => setActiveTab('inventory')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'inventory' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Inventario ({libros.length})</button>
         <button onClick={() => setActiveTab('register')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'register' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Registrar Libro</button>
         <button onClick={() => setActiveTab('import')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'import' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Importar CSV</button>
@@ -358,6 +365,273 @@ export default function AdminDashboard() {
         <button onClick={() => setActiveTab('users')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'users' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Control de Usuarios</button>
         <button onClick={() => setActiveTab('roles')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'roles' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Gestión de Roles</button>
       </div>
+
+      {/* TAB: DASHBOARD DE PRÉSTAMOS */}
+      {activeTab === 'dashboard' && (() => {
+        const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        // Años disponibles según los datos
+        const aniosDisponibles = Array.from(
+          new Set(allPrestamos.map(p => new Date(p.fecha_prestamo).getFullYear()))
+        ).sort((a, b) => b - a);
+
+        // Filtrado por mes/año seleccionados
+        const prestamosFiltrados = allPrestamos.filter(p => {
+          const fecha = new Date(p.fecha_prestamo);
+          const coincideAnio = dashAnio === 'todos' || fecha.getFullYear() === dashAnio;
+          const coincideMes = dashMes === 'todos' || fecha.getMonth() === dashMes;
+          return coincideAnio && coincideMes;
+        });
+
+        const totalPrestamos = prestamosFiltrados.length;
+        const librosEntregados = prestamosFiltrados.filter(p => p.estado === 'devuelto').length;
+        const prestamosActivos = prestamosFiltrados.filter(p => p.estado === 'prestado').length;
+        const prestamosVencidos = prestamosFiltrados.filter(p =>
+          p.estado === 'prestado' && p.fecha_vencimiento && new Date() > new Date(p.fecha_vencimiento)
+        ).length;
+        const tasaEntrega = totalPrestamos > 0 ? Math.round((librosEntregados / totalPrestamos) * 100) : 0;
+
+        // Conteo por mes (total vs entregados) para el año seleccionado
+        const anioParaGrafico = dashAnio === 'todos' ? (aniosDisponibles[0] ?? new Date().getFullYear()) : dashAnio;
+        const conteoPorMes = mesesNombres.map((_, idx) => {
+          const registrosMes = allPrestamos.filter(p => {
+            const fecha = new Date(p.fecha_prestamo);
+            return fecha.getFullYear() === anioParaGrafico && fecha.getMonth() === idx;
+          });
+          return { total: registrosMes.length, entregados: registrosMes.filter(p => p.estado === 'devuelto').length };
+        });
+        const maxConteoMes = Math.max(1, ...conteoPorMes.map(m => m.total));
+
+        // Ranking de libros más prestados (según el filtro activo)
+        const rankingLibros = Object.values(
+          prestamosFiltrados.reduce((acc: any, p: any) => {
+            const titulo = p.libro?.titulo || 'Libro desconocido';
+            if (!acc[titulo]) acc[titulo] = { titulo, cantidad: 0 };
+            acc[titulo].cantidad += 1;
+            return acc;
+          }, {})
+        ).sort((a: any, b: any) => b.cantidad - a.cantidad).slice(0, 5) as { titulo: string; cantidad: number }[];
+        const maxRanking = Math.max(1, ...rankingLibros.map(r => r.cantidad));
+
+        // Dona SVG (% de libros entregados)
+        const radio = 54;
+        const circunferencia = 2 * Math.PI * radio;
+        const offsetDona = circunferencia - (tasaEntrega / 100) * circunferencia;
+
+        return (
+          <div className="mb-8 flex justify-center w-full">
+            <div className="w-full space-y-6">
+
+              {/* CABECERA + FILTROS */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-800">Dashboard de Préstamos</h3>
+                  <p className="text-sm text-gray-500 mt-1">Resumen general de préstamos y libros entregados</p>
+                </div>
+
+                <div className="flex gap-3">
+                  {/* DROPDOWN MES (Combo Personalizado) */}
+                  <div className="relative">
+                    <div
+                      onClick={() => { setIsOpenDashMes(!isOpenDashMes); setIsOpenDashAnio(false); }}
+                      className={`min-w-[150px] p-3 bg-white rounded-lg border ${isOpenDashMes ? 'border-lib-dark ring-2 ring-lib-dark' : 'border-gray-200'} outline-none text-sm cursor-pointer flex justify-between items-center gap-3 transition-all hover:bg-gray-50 shadow-sm`}
+                    >
+                      <span className="text-gray-700 font-medium">{dashMes === 'todos' ? 'Todos los meses' : mesesNombres[dashMes]}</span>
+                      <CaretDownIcon size={14} weight="bold" className={`text-gray-400 transition-transform duration-200 ${isOpenDashMes ? 'rotate-180' : ''}`} />
+                    </div>
+
+                    {isOpenDashMes && (
+                      <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                        <li
+                          onClick={() => { setDashMes('todos'); setIsOpenDashMes(false); }}
+                          className={`relative p-3 pl-4 text-sm cursor-pointer transition-colors hover:bg-gray-50 ${dashMes === 'todos' ? 'bg-gray-50 font-bold text-lib-dark' : 'text-gray-600'}`}
+                        >
+                          {dashMes === 'todos' && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1.5 bg-lib-dark rounded-r-full"></span>}
+                          Todos los meses
+                        </li>
+                        {mesesNombres.map((nombre, idx) => (
+                          <li
+                            key={idx}
+                            onClick={() => { setDashMes(idx); setIsOpenDashMes(false); }}
+                            className={`relative p-3 pl-4 text-sm cursor-pointer transition-colors hover:bg-gray-50 ${dashMes === idx ? 'bg-gray-50 font-bold text-lib-dark' : 'text-gray-600'}`}
+                          >
+                            {dashMes === idx && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1.5 bg-lib-dark rounded-r-full"></span>}
+                            {nombre}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {isOpenDashMes && <div className="fixed inset-0 z-10" onClick={() => setIsOpenDashMes(false)} />}
+                  </div>
+
+                  {/* DROPDOWN AÑO (Combo Personalizado) */}
+                  <div className="relative">
+                    <div
+                      onClick={() => { setIsOpenDashAnio(!isOpenDashAnio); setIsOpenDashMes(false); }}
+                      className={`min-w-[130px] p-3 bg-white rounded-lg border ${isOpenDashAnio ? 'border-lib-dark ring-2 ring-lib-dark' : 'border-gray-200'} outline-none text-sm cursor-pointer flex justify-between items-center gap-3 transition-all hover:bg-gray-50 shadow-sm`}
+                    >
+                      <span className="text-gray-700 font-medium">{dashAnio === 'todos' ? 'Todos los años' : dashAnio}</span>
+                      <CaretDownIcon size={14} weight="bold" className={`text-gray-400 transition-transform duration-200 ${isOpenDashAnio ? 'rotate-180' : ''}`} />
+                    </div>
+
+                    {isOpenDashAnio && (
+                      <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                        <li
+                          onClick={() => { setDashAnio('todos'); setIsOpenDashAnio(false); }}
+                          className={`relative p-3 pl-4 text-sm cursor-pointer transition-colors hover:bg-gray-50 ${dashAnio === 'todos' ? 'bg-gray-50 font-bold text-lib-dark' : 'text-gray-600'}`}
+                        >
+                          {dashAnio === 'todos' && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1.5 bg-lib-dark rounded-r-full"></span>}
+                          Todos los años
+                        </li>
+                        {aniosDisponibles.map((anio) => (
+                          <li
+                            key={anio}
+                            onClick={() => { setDashAnio(anio); setIsOpenDashAnio(false); }}
+                            className={`relative p-3 pl-4 text-sm cursor-pointer transition-colors hover:bg-gray-50 ${dashAnio === anio ? 'bg-gray-50 font-bold text-lib-dark' : 'text-gray-600'}`}
+                          >
+                            {dashAnio === anio && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1.5 bg-lib-dark rounded-r-full"></span>}
+                            {anio}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {isOpenDashAnio && <div className="fixed inset-0 z-10" onClick={() => setIsOpenDashAnio(false)} />}
+                  </div>
+                </div>
+              </div>
+
+              {/* TARJETAS RESUMEN */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-lib-dark rounded-2xl p-5 shadow-md relative overflow-hidden">
+                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/5 rounded-full"></div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-white/70 uppercase tracking-wide">Total Préstamos</p>
+                    <div className="p-2 bg-white/10 rounded-lg"><ClipboardTextIcon size={16} weight="bold" className="text-white" /></div>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{totalPrestamos}</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Entregados</p>
+                    <div className="p-2 bg-amber-50 rounded-lg"><BookOpenIcon size={16} weight="bold" className="text-amber-500" /></div>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800">{librosEntregados}</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Préstamos Activos</p>
+                    <div className="p-2 bg-blue-50 rounded-lg"><TrendUpIcon size={16} weight="bold" className="text-blue-500" /></div>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800">{prestamosActivos}</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vencidos</p>
+                    <div className="p-2 bg-red-50 rounded-lg"><ClockCountdownIcon size={16} weight="bold" className="text-red-500" /></div>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800">{prestamosVencidos}</p>
+                </div>
+              </div>
+
+              {/* GRÁFICO DE BARRAS + DONA + RANKING */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* GRÁFICO DE BARRAS DOS TONOS */}
+                <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <h4 className="text-base font-bold text-gray-800">Préstamos vs Entregados · {anioParaGrafico}</h4>
+                    <div className="flex items-center gap-4 text-xs font-semibold text-gray-500">
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-lib-dark"></span>Préstamos</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>Entregados</span>
+                    </div>
+                  </div>
+
+                  {allPrestamos.length > 0 ? (
+                    <div className="flex items-end gap-3 h-52 border-b border-gray-100 pb-2">
+                      {conteoPorMes.map((m, idx) => (
+                        <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group">
+                          <div className="flex items-end gap-1 w-full justify-center h-full">
+                            <div
+                              className={`w-1/2 rounded-t-md transition-all ${dashMes === idx ? 'bg-lib-dark' : 'bg-lib-dark/80 group-hover:bg-lib-dark'}`}
+                              style={{ height: `${(m.total / maxConteoMes) * 100}%`, minHeight: m.total > 0 ? '4px' : '0px' }}
+                              title={`${m.total} préstamos`}
+                            />
+                            <div
+                              className="w-1/2 rounded-t-md bg-amber-400 group-hover:bg-amber-500 transition-all"
+                              style={{ height: `${(m.entregados / maxConteoMes) * 100}%`, minHeight: m.entregados > 0 ? '4px' : '0px' }}
+                              title={`${m.entregados} entregados`}
+                            />
+                          </div>
+                          <span className="text-[10px] font-semibold text-gray-400 mt-2">
+                            {mesesNombres[idx].slice(0, 3)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">No hay datos de préstamos aún.</p>
+                  )}
+                </div>
+
+                {/* DONA DE TASA DE ENTREGA */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col items-center">
+                  <h4 className="text-base font-bold text-gray-800 mb-4 self-start">Tasa de Entrega</h4>
+                  <div className="relative w-36 h-36">
+                    <svg viewBox="0 0 120 120" className="w-36 h-36 -rotate-90">
+                      <circle cx="60" cy="60" r={radio} fill="none" stroke="#f3f4f6" strokeWidth="12" />
+                      <circle
+                        cx="60" cy="60" r={radio} fill="none" stroke="#f59e0b" strokeWidth="12"
+                        strokeDasharray={circunferencia} strokeDashoffset={totalPrestamos > 0 ? offsetDona : circunferencia}
+                        strokeLinecap="round" className="transition-all duration-500"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-gray-800">{tasaEntrega}%</span>
+                    </div>
+                  </div>
+                  <div className="w-full mt-6 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-gray-500 font-semibold"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Entregados</span>
+                      <span className="font-bold text-gray-700">{librosEntregados}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-gray-500 font-semibold"><span className="w-2.5 h-2.5 rounded-full bg-gray-200"></span>Pendientes</span>
+                      <span className="font-bold text-gray-700">{totalPrestamos - librosEntregados}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* RANKING DE LIBROS MÁS PRESTADOS */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <h4 className="text-base font-bold text-gray-800 mb-4">Libros más prestados</h4>
+                {rankingLibros.length > 0 ? (
+                  <div className="space-y-4">
+                    {rankingLibros.map((libro, idx) => (
+                      <div key={idx} className="flex items-center gap-4">
+                        <span className="w-6 text-xs font-bold text-gray-400">#{idx + 1}</span>
+                        <span className="w-48 truncate text-sm font-semibold text-gray-700">{libro.titulo}</span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className="h-full bg-lib-dark rounded-full transition-all"
+                            style={{ width: `${(libro.cantidad / maxRanking) * 100}%` }}
+                          />
+                        </div>
+                        <span className="w-6 text-right text-sm font-bold text-gray-700">{libro.cantidad}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">No hay préstamos registrados en este periodo.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TABLA DE INVENTARIO */}
       {activeTab === 'inventory' && (

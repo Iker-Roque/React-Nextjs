@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { BookIcon, XIcon } from '@phosphor-icons/react';
+import { BookIcon, XIcon, TrashIcon } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabaseClient';
 import { usePathname } from 'next/navigation'; // <-- 1. Importación añadida
 
@@ -9,12 +9,33 @@ const CarritoPrestamos = () => {
   const [abierto, setAbierto] = useState(false);
   const [prestamos, setPrestamos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
-  
+  const [userId, setUserId] = useState<string | null>(null);
+
   //Obtener la ruta actual
   const pathname = usePathname(); 
   
   //Defino en qué rutas se debe ocultar (exactamente en perfil o cualquier ruta que empiece con admin)
   const ocultarCarrito = pathname === '/perfil' || pathname?.startsWith('/admin');
+
+  // Clave de localStorage para guardar las notificaciones descartadas por usuario
+  const getStorageKey = (uid: string) => `carrito_descartados_${uid}`;
+
+  const getDescartados = (uid: string): number[] => {
+    try {
+      const raw = localStorage.getItem(getStorageKey(uid));
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const guardarDescartados = (uid: string, ids: number[]) => {
+    try {
+      localStorage.setItem(getStorageKey(uid), JSON.stringify(ids));
+    } catch {
+      // Si localStorage falla (modo privado, cuota llena, etc.) simplemente no persiste
+    }
+  };
 
   const cargarMisPrestamos = async () => {
     setCargando(true);
@@ -22,10 +43,12 @@ const CarritoPrestamos = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
+      setUserId(session.user.id);
       const res = await fetch(`/api/prestamos/usuario/${session.user.id}`);
       if (res.ok) {
         const data = await res.json();
-        setPrestamos(data);
+        const descartados = getDescartados(session.user.id);
+        setPrestamos(data.filter((p: any) => !descartados.includes(p.id)));
       }
     } catch (error) {
       console.error("Error al cargar carrito:", error);
@@ -37,6 +60,25 @@ const CarritoPrestamos = () => {
   useEffect(() => {
     if (abierto) cargarMisPrestamos();
   }, [abierto]);
+
+  // Quita un préstamo individual de la vista y lo recuerda para que no reaparezca
+  const quitarNotificacion = (id: number) => {
+    setPrestamos((prev) => prev.filter((p) => p.id !== id));
+    if (userId) {
+      const descartados = getDescartados(userId);
+      guardarDescartados(userId, [...descartados, id]);
+    }
+  };
+
+  // Limpia todas las notificaciones visibles y las recuerda para que no reaparezcan
+  const limpiarNotificaciones = () => {
+    if (userId) {
+      const idsActuales = prestamos.map((p) => p.id);
+      const descartados = getDescartados(userId);
+      guardarDescartados(userId, [...new Set([...descartados, ...idsActuales])]);
+    }
+    setPrestamos([]);
+  };
 
   // <-- 4. Si la ruta es admin o perfil, no renderiza nada (lo oculta)
   if (ocultarCarrito) return null;
@@ -65,9 +107,20 @@ const CarritoPrestamos = () => {
       <div className={`fixed top-0 right-0 h-full w-80 bg-white shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${abierto ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h2 className="font-bold text-lg text-gray-800">Mis Préstamos</h2>
-          <button onClick={() => setAbierto(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl cursor-pointer">
-            <XIcon size={30} />
-          </button>
+          <div className="flex items-center gap-3">
+            {prestamos.length > 0 && (
+              <button
+                onClick={limpiarNotificaciones}
+                title="Limpiar notificaciones"
+                className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+              >
+                <TrashIcon size={20} weight="bold" />
+              </button>
+            )}
+            <button onClick={() => setAbierto(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl cursor-pointer">
+              <XIcon size={30} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -77,8 +130,15 @@ const CarritoPrestamos = () => {
             <p className="text-center text-sm text-gray-500 mt-10">Aún no has solicitado ningún libro.</p>
           ) : (
             prestamos.map((prestamo) => (
-              <div key={prestamo.id} className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
-                <p className="text-xs text-gray-800 font-bold mb-1">{prestamo.libro?.titulo?.replace(/['"]/g, '') || 'Libro desconocido'}</p>
+              <div key={prestamo.id} className="relative bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+                <button
+                  onClick={() => quitarNotificacion(prestamo.id)}
+                  title="Quitar notificación"
+                  className="absolute top-2 right-2 text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
+                >
+                  <TrashIcon size={14} weight="bold" />
+                </button>
+                <p className="text-xs text-gray-800 font-bold mb-1 pr-5">{prestamo.libro?.titulo?.replace(/['"]/g, '') || 'Libro desconocido'}</p>
                 <div className="flex justify-between items-center mt-2">
                   <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase 
                   ${prestamo.estado === 'solicitado' ? 'bg-yellow-100 text-yellow-700' :
