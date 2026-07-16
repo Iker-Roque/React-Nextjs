@@ -55,6 +55,12 @@ export default function AdminDashboard() {
     if (activeTab === 'loans' || activeTab === 'dashboard' || activeTab === 'users') fetchAllPrestamos();
   }, [activeTab]);
 
+  // Carga los préstamos una vez al entrar al panel, así el contador de
+  // solicitudes pendientes en el menú es visible desde cualquier pestaña.
+  useEffect(() => {
+    fetchAllPrestamos();
+  }, []);
+
   // --- VERIFICACIÓN AUTOMÁTICA DE PRÉSTAMOS VENCIDOS NO ENTREGADOS ---
   // Llama al endpoint del backend que revisa los préstamos vencidos y aplica
   // infracciones/suspensiones. Toda la lógica de negocio vive en el backend
@@ -487,7 +493,14 @@ export default function AdminDashboard() {
         <button onClick={() => setActiveTab('inventory')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'inventory' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Inventario ({libros.length})</button>
         <button onClick={() => setActiveTab('register')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'register' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Registrar Libro</button>
         <button onClick={() => setActiveTab('import')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'import' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Importar CSV</button>
-        <button onClick={() => setActiveTab('loans')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'loans' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Ver Préstamos Solicitados</button>
+        <button onClick={() => setActiveTab('loans')} className={`relative px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'loans' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>
+          Ver Préstamos Solicitados
+          {allPrestamos.filter(p => p.estado === 'solicitado').length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-orange-500 text-white text-[10px] font-bold rounded-full align-top animate-pulse">
+              {allPrestamos.filter(p => p.estado === 'solicitado').length}
+            </span>
+          )}
+        </button>
         <button onClick={() => setActiveTab('users')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'users' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Control de Usuarios</button>
         <button onClick={() => setActiveTab('roles')} className={`px-6 py-4 font-semibold text-sm transition-all ${activeTab === 'roles' ? 'text-lib-dark border-b-2 border-lib-dark' : 'text-gray-500 hover:text-gray-700'}`}>Gestión de Roles</button>
       </div>
@@ -1023,6 +1036,68 @@ export default function AdminDashboard() {
       {/* TAB: VER PRÉSTAMOS (Buscador y Botón de Acción) */}
       {activeTab === 'loans' && (
         <div className='flex justify-center w-full'>
+        <div className="w-full space-y-6">
+
+          {/* SOLICITUDES PENDIENTES: panel prioritario separado del historial, para que el
+              bibliotecario vea de un vistazo qué libros tiene que ir a buscar y prepararlos */}
+          {(() => {
+            const pendientes = allPrestamos
+              .filter(p => p.estado === 'solicitado')
+              .sort((a, b) => new Date(a.fecha_prestamo).getTime() - new Date(b.fecha_prestamo).getTime()); // más antigua primero
+
+            if (pendientes.length === 0) return null;
+
+            return (
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="flex items-center justify-center w-7 h-7 bg-orange-500 text-white text-sm font-bold rounded-full">
+                    {pendientes.length}
+                  </span>
+                  <h3 className="text-xl font-bold text-orange-900">Solicitudes Pendientes por Preparar</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pendientes.map((p) => (
+                    <div key={p.id} className="bg-white rounded-xl p-4 border border-orange-100 shadow-sm flex flex-col gap-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-bold text-gray-800 text-sm leading-tight">{p.libro?.titulo || 'Libro desconocido'}</p>
+                        <span className="shrink-0 px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-mono font-bold">#{p.id}</span>
+                      </div>
+
+                      {p.libro?.categoria && (
+                        <span className="self-start px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold uppercase">
+                          {p.libro.categoria}
+                        </span>
+                      )}
+
+                      <div className="text-xs text-gray-500 space-y-0.5">
+                        <p>DNI: <span className="font-mono font-bold text-gray-700">{p.dni_usuario}</span></p>
+                        <p>Solicitado: {new Date(p.fecha_prestamo).toLocaleDateString()} {new Date(p.fecha_prestamo).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => handleAprobarPrestamo(p.id)}
+                          disabled={procesandoSolicitud === p.id}
+                          className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                        >
+                          {procesandoSolicitud === p.id ? '...' : 'Confirmar Entrega'}
+                        </button>
+                        <button
+                          onClick={() => handleRechazarPrestamo(p.id)}
+                          disabled={procesandoSolicitud === p.id}
+                          className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 overflow-hidden w-full">
           
 
@@ -1056,11 +1131,13 @@ export default function AdminDashboard() {
                 {/*Barra de busqueda*/}
                 <tbody className="divide-y divide-gray-50">
                   {(() => {
-                    const filtrados = allPrestamos.filter(p =>
-                      busquedaId === '' ||
-                      p.id?.toString().includes(busquedaId) ||
-                      p.dni_usuario?.includes(busquedaId)
-                    );
+                    const filtrados = allPrestamos
+                      .filter(p => p.estado !== 'solicitado')
+                      .filter(p =>
+                        busquedaId === '' ||
+                        p.id?.toString().includes(busquedaId) ||
+                        p.dni_usuario?.includes(busquedaId)
+                      );
 
                     if (filtrados.length === 0) {
                       return (
@@ -1159,6 +1236,7 @@ export default function AdminDashboard() {
           ) : (
             <p className="text-gray-500 text-center py-4">No hay solicitudes de préstamos registradas del sistema.</p>
           )}
+        </div>
         </div>
         </div>
       )}
