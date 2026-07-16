@@ -229,6 +229,39 @@ export default function AdminDashboard() {
     }
   };
 
+  // Confirma la entrega en el mostrador: SOLICITADO -> PRESTADO (calcula 15 días hábiles en el backend)
+  const [procesandoSolicitud, setProcesandoSolicitud] = useState<number | null>(null);
+
+  const handleAprobarPrestamo = async (prestamoId: number) => {
+    setProcesandoSolicitud(prestamoId);
+    try {
+      const res = await fetch(`/api/prestamos/${prestamoId}/aprobar`, { method: 'PUT' });
+      if (!res.ok) throw new Error('Error al confirmar la entrega');
+      mostrarNotificacion('Entrega confirmada: préstamo activo', 'exito');
+      fetchAllPrestamos();
+    } catch (error: any) {
+      mostrarNotificacion(error.message || 'Error al confirmar la entrega', 'error');
+    } finally {
+      setProcesandoSolicitud(null);
+    }
+  };
+
+  // Rechaza la solicitud: SOLICITADO -> RECHAZADO (y devuelve el stock del libro)
+  const handleRechazarPrestamo = async (prestamoId: number) => {
+    setProcesandoSolicitud(prestamoId);
+    try {
+      const res = await fetch(`/api/prestamos/${prestamoId}/rechazar`, { method: 'PUT' });
+      if (!res.ok) throw new Error('Error al rechazar la solicitud');
+      mostrarNotificacion('Solicitud rechazada y stock devuelto', 'exito');
+      fetchAllPrestamos();
+      fetchLibros();
+    } catch (error: any) {
+      mostrarNotificacion(error.message || 'Error al rechazar la solicitud', 'error');
+    } finally {
+      setProcesandoSolicitud(null);
+    }
+  };
+
   // Función para activar/desactivar la visibilidad de un libro
   const handleToggleEstadoLibro = async (libroId: number, estadoActual: string) => {
     const nuevoEstado = estadoActual === 'inactivo' ? 'activo' : 'inactivo';
@@ -527,7 +560,7 @@ export default function AdminDashboard() {
                   <div className="relative">
                     <div
                       onClick={() => { setIsOpenDashMes(!isOpenDashMes); setIsOpenDashAnio(false); }}
-                      className={`min-w-[150px] p-3 bg-white rounded-lg border ${isOpenDashMes ? 'border-lib-dark ring-2 ring-lib-dark' : 'border-gray-200'} outline-none text-sm cursor-pointer flex justify-between items-center gap-3 transition-all hover:bg-gray-50 shadow-sm`}
+                      className={`min-w-37.5 p-3 bg-white rounded-lg border ${isOpenDashMes ? 'border-lib-dark ring-2 ring-lib-dark' : 'border-gray-200'} outline-none text-sm cursor-pointer flex justify-between items-center gap-3 transition-all hover:bg-gray-50 shadow-sm`}
                     >
                       <span className="text-gray-700 font-medium">{dashMes === 'todos' ? 'Todos los meses' : mesesNombres[dashMes]}</span>
                       <CaretDownIcon size={14} weight="bold" className={`text-gray-400 transition-transform duration-200 ${isOpenDashMes ? 'rotate-180' : ''}`} />
@@ -561,7 +594,7 @@ export default function AdminDashboard() {
                   <div className="relative">
                     <div
                       onClick={() => { setIsOpenDashAnio(!isOpenDashAnio); setIsOpenDashMes(false); }}
-                      className={`min-w-[130px] p-3 bg-white rounded-lg border ${isOpenDashAnio ? 'border-lib-dark ring-2 ring-lib-dark' : 'border-gray-200'} outline-none text-sm cursor-pointer flex justify-between items-center gap-3 transition-all hover:bg-gray-50 shadow-sm`}
+                      className={`min-w-32.5 p-3 bg-white rounded-lg border ${isOpenDashAnio ? 'border-lib-dark ring-2 ring-lib-dark' : 'border-gray-200'} outline-none text-sm cursor-pointer flex justify-between items-center gap-3 transition-all hover:bg-gray-50 shadow-sm`}
                     >
                       <span className="text-gray-700 font-medium">{dashAnio === 'todos' ? 'Todos los años' : dashAnio}</span>
                       <CaretDownIcon size={14} weight="bold" className={`text-gray-400 transition-transform duration-200 ${isOpenDashAnio ? 'rotate-180' : ''}`} />
@@ -1074,7 +1107,7 @@ export default function AdminDashboard() {
                                 p.estado === 'prestado' ? 'bg-blue-100 text-blue-700' :
                                   p.estado === 'devuelto' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                                 }`}>
-                                {p.estado}
+                                {p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}
                               </span>
                               {estaVencido && (
                                 <span className="inline-block px-2 py-1 rounded-full text-[10px] font-bold bg-red-600 text-white animate-pulse shadow-sm">
@@ -1085,7 +1118,22 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-6 py-4 text-center">
                             {p.estado === 'solicitado' && (
-                              <span className="text-gray-400 text-xs font-bold animate-pulse">Procesando...</span>
+                              <div className="flex gap-2 justify-center flex-wrap">
+                                <button
+                                  onClick={() => handleAprobarPrestamo(p.id)}
+                                  disabled={procesandoSolicitud === p.id}
+                                  className="px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                >
+                                  {procesandoSolicitud === p.id ? '...' : 'Confirmar Entrega'}
+                                </button>
+                                <button
+                                  onClick={() => handleRechazarPrestamo(p.id)}
+                                  disabled={procesandoSolicitud === p.id}
+                                  className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors shadow-sm disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                >
+                                  Rechazar
+                                </button>
+                              </div>
                             )}
 
                             {p.estado === 'prestado' && (
