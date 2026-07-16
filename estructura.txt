@@ -1,0 +1,45 @@
+app/
+├─ admin/
+│  └─ page.tsx
+├─ api/
+│  ├─ libros/
+│  │  ├─ importar/
+│  │  │  └─ route.ts
+│  │  └─ route.ts
+│  ├─ login/
+│  │  └─ route.ts
+│  └─ prestamos/
+│     ├─ [id]/
+│     │  ├─ aprobar/
+│     │  │  └─ route.ts
+│     │  └─ rechazar/
+│     │     └─ route.ts
+│     ├─ usuario/
+│     │  └─ [id]/
+│     │     └─ route.ts
+│     ├─ verificar-vencidos/
+│     │  └─ route.ts
+│     └─ route.ts
+├─ catalogo/
+│  └─ page.tsx
+├─ components/
+│  ├─ CardLibro.tsx
+│  ├─ CarritoPrestamos.tsx
+│  ├─ Navbar.tsx
+│  └─ Sidebar.tsx
+├─ hooks/
+│  └─ usePerfil.ts
+├─ login/
+│  └─ page.tsx
+├─ perfil/
+│  └─ page.tsx
+├─ prestamos/
+│  └─ page.tsx
+├─ registro/
+│  └─ page.tsx
+├─ types/
+│  └─ index.ts
+├─ favicon.ico
+├─ globals.css
+├─ layout.tsx
+└─ page.tsx

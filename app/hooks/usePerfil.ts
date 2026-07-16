@@ -5,26 +5,45 @@ export function usePerfil() {
   const [perfil, setPerfil] = useState<any>(null);
 
   useEffect(() => {
-    const obtenerEstadoUsuario = async () => {
+    let activo = true; // evita actualizar el estado si el componente ya se desmontó
+
+    const cargarPerfil = async (userId: string) => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const { data } = await supabase
-            .from('perfiles')
-            .select('estado_cuenta, motivo_estado, infracciones')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (data) {
-            setPerfil(data);
-          }
+        const { data, error } = await supabase
+          .from('perfiles')
+          .select('estado_cuenta, motivo_estado, infracciones')
+          .eq('id', userId)
+          .single();
+
+        if (activo && !error && data) {
+          setPerfil(data);
         }
       } catch (error) {
         console.error("Error obteniendo perfil:", error);
       }
     };
 
-    obtenerEstadoUsuario();
+    // 1. Chequeo inicial normal (cubre la mayoría de los casos)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) cargarPerfil(session.user.id);
+    });
+
+    // 2. Escucha cambios de sesión: esto es lo que arregla la carrera al recargar.
+    // Cuando la sesión termina de restaurarse desde localStorage, Supabase dispara
+    // un evento (INITIAL_SESSION / SIGNED_IN) y recién ahí cargamos el perfil.
+    // También cubre login y logout en caliente sin necesidad de recargar la página.
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        cargarPerfil(session.user.id);
+      } else if (activo) {
+        setPerfil(null);
+      }
+    });
+
+    return () => {
+      activo = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   return perfil;

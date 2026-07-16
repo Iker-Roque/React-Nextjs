@@ -7,4 +7,10 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error("Faltan variables en .env.local");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,      // guarda la sesión en localStorage
+    autoRefreshToken: true,    // renueva el token antes de que expire
+    detectSessionInUrl: true,  // necesario para links de confirmación/recuperación de contraseña
+  },
+});

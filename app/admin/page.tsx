@@ -52,8 +52,39 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab === 'loans' || activeTab === 'dashboard') fetchAllPrestamos();
+    if (activeTab === 'loans' || activeTab === 'dashboard' || activeTab === 'users') fetchAllPrestamos();
   }, [activeTab]);
+
+  // --- VERIFICACIÓN AUTOMÁTICA DE PRÉSTAMOS VENCIDOS NO ENTREGADOS ---
+  // Llama al endpoint del backend que revisa los préstamos vencidos y aplica
+  // infracciones/suspensiones. Toda la lógica de negocio vive en el backend
+  // (app/api/prestamos/verificar-vencidos/route.ts), el front solo dispara la acción.
+  const [verificandoVencidos, setVerificandoVencidos] = useState(false);
+
+  const verificarPrestamosVencidos = async () => {
+    setVerificandoVencidos(true);
+    try {
+      const res = await fetch('/api/prestamos/verificar-vencidos', { method: 'POST' });
+      if (!res.ok) throw new Error('Error al verificar préstamos vencidos');
+
+      const data = await res.json();
+
+      if (data.sanciones > 0) {
+        mostrarNotificacion(`Se registraron ${data.sanciones} falta(s) por libros no entregados a tiempo`, 'exito');
+        fetchAllPrestamos();
+        fetchUsuarios();
+      }
+    } catch (error: any) {
+      console.error("Error al verificar préstamos vencidos:", error);
+    } finally {
+      setVerificandoVencidos(false);
+    }
+  };
+
+  // Corre automáticamente una vez al entrar al panel de administración
+  useEffect(() => {
+    verificarPrestamosVencidos();
+  }, []);
 
   useEffect(() => {
     fetchLibros();
@@ -224,8 +255,42 @@ export default function AdminDashboard() {
   // --- CONTROL DE USUARIOS ---
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [busquedaUsuario, setBusquedaUsuario] = useState('');
-  const [modalUsuario, setModalUsuario] = useState<{ id: string, nombre: string, infracciones: number } | null>(null);
+  const [modalUsuario, setModalUsuario] = useState<{ id: string, nombre: string, infracciones: number, prestamosActivos: any[], prestamosVencidos: any[] } | null>(null);
   const [motivoSuspension, setMotivoSuspension] = useState('');
+  const [prestamoDanadoSeleccionado, setPrestamoDanadoSeleccionado] = useState<number | null>(null);
+
+  // Tipos de falta predefinidos con su plantilla de motivo (el admin puede editar el texto después)
+  const tiposFalta: Record<string, string> = {
+    'Retraso en la entrega': 'El usuario no entregó el libro dentro de la fecha límite.',
+    'Libro dañado': 'El libro fue devuelto en mal estado (dañado).',
+    'Libro perdido': 'El usuario no devolvió el libro (reportado como perdido).',
+    'Comportamiento inadecuado': 'Comportamiento inadecuado dentro de la biblioteca.',
+    'Otro': ''
+  };
+  const [tipoSancion, setTipoSancion] = useState('Otro');
+  const [isOpenTipoSancion, setIsOpenTipoSancion] = useState(false);
+
+  // Todas las sanciones (manuales y automáticas) se disparan desde Control de Usuarios.
+  // Calcula los préstamos activos y vencidos del usuario para vincularlos a la sanción.
+  const abrirModalSancion = (usuario: { id: string, nombre: string, infracciones: number }, forzarTardia = false) => {
+    const prestamosDelUsuario = allPrestamos.filter((p: any) => p.usuario_id === usuario.id);
+    const prestamosActivos = prestamosDelUsuario.filter((p: any) => p.estado === 'prestado');
+    const prestamosVencidos = prestamosActivos.filter((p: any) =>
+      p.fecha_vencimiento && new Date() > new Date(p.fecha_vencimiento) && !p.infraccion_aplicada
+    );
+
+    if (forzarTardia && prestamosVencidos.length > 0) {
+      const titulos = prestamosVencidos.map((p: any) => p.libro?.titulo || 'Libro').join(', ');
+      setTipoSancion('Retraso en la entrega');
+      setMotivoSuspension(`${tiposFalta['Retraso en la entrega']} (${titulos})`);
+    } else {
+      setTipoSancion('Otro');
+      setMotivoSuspension('');
+    }
+
+    setPrestamoDanadoSeleccionado(null);
+    setModalUsuario({ id: usuario.id, nombre: usuario.nombre, infracciones: usuario.infracciones, prestamosActivos, prestamosVencidos });
+  };
 
   const fetchUsuarios = async () => {
     try {
@@ -271,17 +336,21 @@ export default function AdminDashboard() {
   };
 
   // --- FUNCIÓN PARA SANCIONAR ---
-  const registrarInfraccion = async (usuarioId: string, infraccionesActuales: number, motivoSancion: string) => {
+  const registrarInfraccion = async (
+    usuarioId: string,
+    infraccionesActuales: number,
+    motivoSancion: string,
+    opciones?: { prestamoDanadoId?: number | null; prestamosTardiosIds?: number[] }
+  ) => {
+    // Cualquier sanción suspende la cuenta de inmediato.
+    // "nuevasInfracciones" ya no es un umbral, solo queda como historial de cuántas veces fue sancionado.
     const nuevasInfracciones = (infraccionesActuales || 0) + 1;
-    const esInactivo = nuevasInfracciones >= 3;
-    const motivoFinal = esInactivo
-      ? `Cuenta suspendida por acumular 3 infracciones. (Última falta: ${motivoSancion})`
-      : motivoSancion;
+    const motivoFinal = `Cuenta suspendida por sanción: ${motivoSancion}`;
 
     // 1. ACTUALIZACIÓN VISUAL INSTANTÁNEA (Esto suma los números en vivo sin esperar)
     setUsuarios(prevUsuarios => prevUsuarios.map(u =>
       u.id === usuarioId
-        ? { ...u, infracciones: nuevasInfracciones, estado_cuenta: esInactivo ? 'inactivo' : 'activo', motivo_estado: esInactivo ? motivoFinal : null }
+        ? { ...u, infracciones: nuevasInfracciones, estado_cuenta: 'inactivo', motivo_estado: motivoFinal }
         : u
     ));
 
@@ -290,16 +359,40 @@ export default function AdminDashboard() {
         .from('perfiles')
         .update({
           infracciones: nuevasInfracciones,
-          estado_cuenta: esInactivo ? 'inactivo' : 'activo',
-          motivo_estado: esInactivo ? motivoFinal : null
+          estado_cuenta: 'inactivo',
+          motivo_estado: motivoFinal
         })
         .eq('id', usuarioId);
 
       if (error) throw error;
 
-      mostrarNotificacion(esInactivo ? "Usuario suspendido (Límite de infracciones)" : `Infracción registrada (Faltan ${3 - nuevasInfracciones} para suspensión)`, "exito");
+      // Libro dañado: el libro ya está físicamente de vuelta, solo en mal estado -> se marca devuelto
+      if (opciones?.prestamoDanadoId) {
+        await supabase
+          .from('prestamos')
+          .update({ estado: 'devuelto', infraccion_aplicada: true })
+          .eq('id', opciones.prestamoDanadoId);
+      }
+
+      // Entrega tardía: el libro puede seguir sin devolverse, solo marcamos que ya generó la falta
+      // (para que la verificación automática de vencidos no lo vuelva a sancionar)
+      if (opciones?.prestamosTardiosIds && opciones.prestamosTardiosIds.length > 0) {
+        await supabase
+          .from('prestamos')
+          .update({ infraccion_aplicada: true })
+          .in('id', opciones.prestamosTardiosIds);
+      }
+
+      if (opciones?.prestamoDanadoId || opciones?.prestamosTardiosIds?.length) {
+        fetchAllPrestamos();
+        fetchLibros();
+      }
+
+      mostrarNotificacion("Usuario suspendido por la sanción registrada", "exito");
       setModalUsuario(null);
       setMotivoSuspension('');
+      setTipoSancion('Otro');
+      setPrestamoDanadoSeleccionado(null);
 
     } catch (error) {
       mostrarNotificacion("Error al registrar la infracción", "error");
@@ -1027,56 +1120,24 @@ export default function AdminDashboard() {
         <div className='flex justify-center w-full'>
         <div className="relative bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden mb-8">
 
-          {/* VENTANA EMERGENTE (MODAL) DE INFRACCIÓN */}
-          {modalUsuario && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm p-4">
-              <div className="bg-white p-6 rounded-2xl shadow-2xl border border-red-100 w-full max-w-md animate-fade-in">
-                <h4 className="text-xl font-bold text-gray-800 mb-2">Registrar Infracción</h4>
-                <p className="text-sm text-gray-600 mb-2">
-                  Aplicando sanción a: <span className="font-bold">{modalUsuario.nombre}</span>
-                </p>
-                <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-xs font-bold border border-yellow-200">
-                  Faltas actuales: {modalUsuario.infracciones} / 3
-                  {modalUsuario.infracciones === 2 && " (¡Advertencia: Esta falta suspenderá la cuenta!)"}
-                </div>
-
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Motivo de la falta *</label>
-                <textarea
-                  autoFocus
-                  placeholder="Ej: Devolvió el libro con retraso de 3 días..."
-                  value={motivoSuspension}
-                  onChange={(e) => setMotivoSuspension(e.target.value)}
-                  className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500 text-sm mb-4 resize-none h-24"
-                />
-
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => { setModalUsuario(null); setMotivoSuspension(''); }}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    disabled={motivoSuspension.trim() === ''}
-                    onClick={() => registrarInfraccion(modalUsuario.id, modalUsuario.infracciones, motivoSuspension.trim())}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                  >
-                    Registrar Falta
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h3 className="text-2xl font-bold text-gray-800">Control de Usuarios Registrados</h3>
-            <input
-              type="text"
-              placeholder="Buscar por Nombre o DNI..."
-              value={busquedaUsuario}
-              onChange={(e) => setBusquedaUsuario(e.target.value)}
-              className="w-full md:max-w-xs p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark text-sm"
-            />
+            <div className="flex gap-3 w-full md:w-auto">
+              <button
+                onClick={verificarPrestamosVencidos}
+                disabled={verificandoVencidos}
+                className="whitespace-nowrap px-4 py-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {verificandoVencidos ? 'Verificando...' : 'Verificar Entregas Tardías'}
+              </button>
+              <input
+                type="text"
+                placeholder="Buscar por Nombre o DNI..."
+                value={busquedaUsuario}
+                onChange={(e) => setBusquedaUsuario(e.target.value)}
+                className="w-full md:max-w-xs p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-lib-dark text-sm"
+              />
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -1094,15 +1155,23 @@ export default function AdminDashboard() {
                 {usuarios
                   .filter(u => u.rol !== 'admin')
                   .filter(u => busquedaUsuario === '' || u.dni?.includes(busquedaUsuario) || u.nombre_completo?.toLowerCase().includes(busquedaUsuario.toLowerCase()))
-                  .map((usuario) => (
+                  .map((usuario) => {
+                    const prestamosVencidosUsuario = allPrestamos.filter((p: any) =>
+                      p.usuario_id === usuario.id &&
+                      p.estado === 'prestado' &&
+                      p.fecha_vencimiento &&
+                      new Date() > new Date(p.fecha_vencimiento) &&
+                      !p.infraccion_aplicada
+                    );
+                    return (
                     <tr key={usuario.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-bold text-gray-800">{usuario.nombre_completo || 'Sin nombre'}</td>
                       <td className="px-6 py-4">
                         <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono font-bold">{usuario.dni || 'N/A'}</span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${(usuario.infracciones || 0) >= 3 ? 'bg-red-100 text-red-700' : (usuario.infracciones || 0) > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {usuario.infracciones || 0} / 3
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${(usuario.infracciones || 0) > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {usuario.infracciones || 0} {(usuario.infracciones || 0) === 1 ? 'sanción' : 'sanciones'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -1119,6 +1188,12 @@ export default function AdminDashboard() {
                               Motivo: {usuario.motivo_estado}
                             </span>
                           )}
+
+                          {usuario.estado_cuenta !== 'inactivo' && prestamosVencidosUsuario.length > 0 && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-bold uppercase">
+                              {prestamosVencidosUsuario.length} entrega(s) tardía(s)
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
@@ -1130,16 +1205,26 @@ export default function AdminDashboard() {
                             Rehabilitar Cuenta
                           </button>
                         ) : (
-                          <button
-                            onClick={() => setModalUsuario({ id: usuario.id, nombre: usuario.nombre_completo, infracciones: usuario.infracciones || 0 })}
-                            className="px-4 py-2 bg-gray-100 text-black rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
-                          >
-                            Sancionar
-                          </button>
+                          <div className="flex flex-col gap-2 items-center">
+                            {prestamosVencidosUsuario.length > 0 && (
+                              <button
+                                onClick={() => abrirModalSancion({ id: usuario.id, nombre: usuario.nombre_completo, infracciones: usuario.infracciones || 0 }, true)}
+                                className="px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                              >
+                                Sancionar Entrega Tardía
+                              </button>
+                            )}
+                            <button
+                              onClick={() => abrirModalSancion({ id: usuario.id, nombre: usuario.nombre_completo, infracciones: usuario.infracciones || 0 })}
+                              className="px-4 py-2 bg-gray-100 text-black rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                            >
+                              Sancionar
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
-                  ))}
+                  )})}
               </tbody>
             </table>
           </div>
@@ -1226,6 +1311,122 @@ export default function AdminDashboard() {
                     ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GLOBAL DE INFRACCIÓN (funciona desde cualquier pestaña) */}
+      {modalUsuario && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl border border-red-100 w-full max-w-md animate-fade-in">
+            <h4 className="text-xl font-bold text-gray-800 mb-2">Registrar Infracción</h4>
+            <p className="text-sm text-gray-600 mb-2">
+              Aplicando sanción a: <span className="font-bold">{modalUsuario.nombre}</span>
+            </p>
+            <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg text-xs font-bold border border-red-200">
+              Sanciones anteriores: {modalUsuario.infracciones}. Esta sanción suspenderá la cuenta de inmediato.
+            </div>
+
+            {/* TIPO DE FALTA (Combo Personalizado) */}
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de falta</label>
+            <div className="relative mb-4">
+              <div
+                onClick={() => setIsOpenTipoSancion(!isOpenTipoSancion)}
+                className={`w-full p-3 bg-gray-50 rounded-lg border ${isOpenTipoSancion ? 'border-red-500 ring-2 ring-red-500' : 'border-gray-200'} outline-none text-sm cursor-pointer flex justify-between items-center transition-all hover:bg-gray-100`}
+              >
+                <span className="text-gray-700">{tipoSancion}</span>
+                <svg className={`fill-current h-4 w-4 text-gray-500 transition-transform duration-200 ${isOpenTipoSancion ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
+
+              {isOpenTipoSancion && (
+                <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl overflow-hidden">
+                  {Object.keys(tiposFalta).map((opcion) => (
+                    <li
+                      key={opcion}
+                      onClick={() => {
+                        setTipoSancion(opcion);
+                        setMotivoSuspension(tiposFalta[opcion]);
+                        setIsOpenTipoSancion(false);
+                      }}
+                      className={`relative p-3 pl-4 text-sm cursor-pointer transition-colors hover:bg-gray-50 ${tipoSancion === opcion ? 'bg-gray-50 font-bold text-red-600' : 'text-gray-600'}`}
+                    >
+                      {tipoSancion === opcion && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1.5 bg-red-500 rounded-r-full"></span>
+                      )}
+                      {opcion}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {isOpenTipoSancion && (
+                <div className="fixed inset-0 z-10" onClick={() => setIsOpenTipoSancion(false)} />
+              )}
+            </div>
+
+            {/* Selector de libro cuando la falta es "Libro dañado" */}
+            {tipoSancion === 'Libro dañado' && (
+              modalUsuario.prestamosActivos.length > 0 ? (
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">¿Qué libro llegó dañado? *</label>
+                  <select
+                    value={prestamoDanadoSeleccionado ?? ''}
+                    onChange={(e) => setPrestamoDanadoSeleccionado(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                  >
+                    <option value="">Selecciona un préstamo activo...</option>
+                    {modalUsuario.prestamosActivos.map((p: any) => (
+                      <option key={p.id} value={p.id}>#{p.id} — {p.libro?.titulo || 'Libro desconocido'}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="text-xs text-orange-600 font-semibold mb-4">Este usuario no tiene préstamos activos para vincular como dañados.</p>
+              )
+            )}
+
+            {/* Aviso de libros vinculados cuando la falta es por entrega tardía */}
+            {tipoSancion === 'Retraso en la entrega' && modalUsuario.prestamosVencidos.length > 0 && (
+              <p className="text-xs text-orange-600 font-semibold mb-4">
+                Se marcará como sancionado: {modalUsuario.prestamosVencidos.map((p: any) => p.libro?.titulo || 'Libro').join(', ')}
+              </p>
+            )}
+
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Detalle del motivo *</label>
+            <textarea
+              autoFocus
+              placeholder="Ej: Devolvió el libro con retraso de 3 días..."
+              value={motivoSuspension}
+              onChange={(e) => setMotivoSuspension(e.target.value)}
+              className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-red-500 text-sm mb-4 resize-none h-24"
+            />
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setModalUsuario(null); setMotivoSuspension(''); setTipoSancion('Otro'); setPrestamoDanadoSeleccionado(null); }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={motivoSuspension.trim() === '' || (tipoSancion === 'Libro dañado' && modalUsuario.prestamosActivos.length > 0 && !prestamoDanadoSeleccionado)}
+                onClick={() => {
+                  const opciones: { prestamoDanadoId?: number | null; prestamosTardiosIds?: number[] } = {};
+                  if (tipoSancion === 'Libro dañado' && prestamoDanadoSeleccionado) {
+                    opciones.prestamoDanadoId = prestamoDanadoSeleccionado;
+                  }
+                  if (tipoSancion === 'Retraso en la entrega' && modalUsuario.prestamosVencidos.length > 0) {
+                    opciones.prestamosTardiosIds = modalUsuario.prestamosVencidos.map((p: any) => p.id);
+                  }
+                  registrarInfraccion(modalUsuario.id, modalUsuario.infracciones, motivoSuspension.trim(), opciones);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                Registrar Falta
+              </button>
             </div>
           </div>
         </div>

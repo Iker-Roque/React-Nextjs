@@ -84,7 +84,7 @@ const Navbar: React.FC = () => {
           <Image src="/img/logo.png" alt="Logo" width={60} height={60} style={{ height: "auto" }} />
         </div>
         <div>
-          <h1 className="font-bold text-xl text-lib-dark leading-none">Library</h1>
+          <h1 className="font-bold text-xl text-lib-dark leading-none">Estanteria Digital</h1>
           <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Tu biblioteca, siempre contigo</p>
         </div>
       </div>
