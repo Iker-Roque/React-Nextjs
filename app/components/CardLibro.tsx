@@ -16,22 +16,59 @@ interface LibroProps {
   };
 }
 
+
+// Valor que guardamos en localStorage cuando ya confirmamos que un libro NO tiene
+// portada (o falló de forma permanente). Así no se vuelve a pedir en este navegador.
+const SIN_PORTADA_SENTINEL = '__SIN_PORTADA__';
+
+// TTL para la caché negativa: si un libro quedó marcado como "sin portada"
+// hace más de 7 días, lo reintentamos (pudo haber sido un error transitorio,
+// o Google Books pudo haber indexado la portada después).
+const TTL_SIN_PORTADA_MS = 1000 * 60 * 60 * 24 * 7;
+
+function leerCachePortada(cacheKey: string): string | null {
+  const crudo = localStorage.getItem(cacheKey);
+  if (!crudo) return null;
+
+  try {
+    const { valor, ts } = JSON.parse(crudo);
+    if (valor === SIN_PORTADA_SENTINEL && Date.now() - ts > TTL_SIN_PORTADA_MS) {
+      localStorage.removeItem(cacheKey);
+      return null; // caducó, se reintenta
+    }
+    return valor;
+  } catch {
+    // Formato viejo (string plano, sin TTL) de una versión anterior: lo tratamos
+    // como caducado para forzar un reintento con el proxy nuevo.
+    localStorage.removeItem(cacheKey);
+    return null;
+  }
+}
+
+function guardarCachePortada(cacheKey: string, valor: string) {
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ valor, ts: Date.now() }));
+  } catch { /* no crítico */ }
+}
+
 const CardLibro: React.FC<LibroProps> = ({ id, titulo, autor, img, disp, genero, perfil }) => {
   const [stock, setStock] = useState<number>(disp);
   const [procesando, setProcesando] = useState<boolean>(false);
   const [portadaFinal, setPortadaFinal] = useState<string>(img);
 
   useEffect(() => {
+    // Caso ideal: el libro ya trae "img" desde la base de datos (backfill hecho).
+    // Aquí no se dispara ninguna petición.
     if (img && typeof img === 'string' && img.trim() !== "") {
       setPortadaFinal(img);
       return;
     }
 
     const cacheKey = `portada_libro_${id}`;
-    const portadaGuardada = sessionStorage.getItem(cacheKey);
+    const portadaGuardada = leerCachePortada(cacheKey);
 
     if (portadaGuardada) {
-      setPortadaFinal(portadaGuardada);
+      setPortadaFinal(portadaGuardada === SIN_PORTADA_SENTINEL ? '' : portadaGuardada);
       return;
     }
 
@@ -39,31 +76,24 @@ const CardLibro: React.FC<LibroProps> = ({ id, titulo, autor, img, disp, genero,
 
     const buscarEnAPI = async () => {
       try {
-        const tiempoDeEspera = Math.floor(Math.random() * 2500) + 100;
-        await new Promise(resolve => setTimeout(resolve, tiempoDeEspera));
+        // Ya no llamamos a Google Books directo: pasa por nuestra propia
+        // ruta backend, que cachea en el servidor entre TODOS los usuarios.
+        const res = await fetch(`/api/portada?titulo=${encodeURIComponent(titulo)}&id=${id}`);
+        if (!res.ok) throw new Error("Fallo en la red");
 
-        if (!isMounted) return;
+        const { url, reintentar } = await res.json();
 
-        const query = encodeURIComponent(titulo);
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY;
-        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1&key=${apiKey}`);
-
-        if (res.status === 429) {
-          console.warn(`[Límite 429] Google pidió esperar para la portada de: ${titulo}`);
+        if (reintentar) {
+          // 429/503 transitorio del lado de Google: no cacheamos nada,
+          // se reintentará la próxima vez que se muestre la tarjeta.
           return;
         }
 
-        if (!res.ok) throw new Error("Fallo en la red");
-
-        const data = await res.json();
-
-        if (data.items && data.items.length > 0) {
-          const imagenApi = data.items[0].volumeInfo?.imageLinks?.thumbnail;
-          if (imagenApi && isMounted) {
-            const urlFinal = imagenApi.replace('http:', 'https:').replace('&zoom=5', '&zoom=1');
-            setPortadaFinal(urlFinal);
-            sessionStorage.setItem(cacheKey, urlFinal);
-          }
+        if (url && isMounted) {
+          setPortadaFinal(url);
+          guardarCachePortada(cacheKey, url);
+        } else {
+          guardarCachePortada(cacheKey, SIN_PORTADA_SENTINEL);
         }
       } catch (error) {
         console.warn(`No se pudo cargar la portada de "${titulo}" de forma automática.`);
@@ -124,11 +154,14 @@ const CardLibro: React.FC<LibroProps> = ({ id, titulo, autor, img, disp, genero,
         {portadaFinal ? (
           <img
             src={portadaFinal}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             alt={titulo}
             onError={(e) => {
               e.currentTarget.onerror = null;
               setPortadaFinal('');
+              guardarCachePortada(`portada_libro_${id}`, SIN_PORTADA_SENTINEL);
             }}
           />
         ) : (

@@ -237,6 +237,8 @@ export default function AdminDashboard() {
 
   // Confirma la entrega en el mostrador: SOLICITADO -> PRESTADO (calcula 15 días hábiles en el backend)
   const [procesandoSolicitud, setProcesandoSolicitud] = useState<number | null>(null);
+  const [busquedaPendientes, setBusquedaPendientes] = useState('');
+  const [categoriaPendienteFiltro, setCategoriaPendienteFiltro] = useState<string>('todas');
 
   const handleAprobarPrestamo = async (prestamoId: number) => {
     setProcesandoSolicitud(prestamoId);
@@ -1041,20 +1043,74 @@ export default function AdminDashboard() {
           {/* SOLICITUDES PENDIENTES: panel prioritario separado del historial, para que el
               bibliotecario vea de un vistazo qué libros tiene que ir a buscar y prepararlos */}
           {(() => {
-            const pendientes = allPrestamos
+            const pendientesBase = allPrestamos
               .filter(p => p.estado === 'solicitado')
               .sort((a, b) => new Date(a.fecha_prestamo).getTime() - new Date(b.fecha_prestamo).getTime()); // más antigua primero
 
-            if (pendientes.length === 0) return null;
+            if (pendientesBase.length === 0) return null;
+
+            // Categorías presentes entre las pendientes, para armar los chips de filtro rápido
+            const categoriasPendientes = Array.from(
+              new Set(pendientesBase.map(p => p.libro?.categoria).filter(Boolean))
+            ) as string[];
+
+            const texto = busquedaPendientes.trim().toLowerCase();
+            const pendientes = pendientesBase.filter(p => {
+              const coincideCategoria = categoriaPendienteFiltro === 'todas' || p.libro?.categoria === categoriaPendienteFiltro;
+              const coincideTexto = texto === '' ||
+                p.libro?.titulo?.toLowerCase().includes(texto) ||
+                p.dni_usuario?.includes(texto) ||
+                p.id?.toString().includes(texto) ||
+                p.libro?.categoria?.toLowerCase().includes(texto);
+              return coincideCategoria && coincideTexto;
+            });
 
             return (
               <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="flex items-center justify-center w-7 h-7 bg-orange-500 text-white text-sm font-bold rounded-full">
-                    {pendientes.length}
-                  </span>
-                  <h3 className="text-xl font-bold text-orange-900">Solicitudes Pendientes por Preparar</h3>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-7 h-7 bg-orange-500 text-white text-sm font-bold rounded-full">
+                      {pendientesBase.length}
+                    </span>
+                    <h3 className="text-xl font-bold text-orange-900">Solicitudes Pendientes por Preparar</h3>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Buscar por título, DNI, ID o categoría..."
+                    value={busquedaPendientes}
+                    onChange={(e) => setBusquedaPendientes(e.target.value)}
+                    className="w-full md:max-w-xs p-2.5 bg-white rounded-lg border border-orange-200 outline-none focus:ring-2 focus:ring-orange-400 text-sm"
+                  />
                 </div>
+
+                {/* CHIPS DE CATEGORÍA: filtro de un clic para agrupar por sección/estante */}
+                {categoriasPendientes.length > 1 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button
+                      onClick={() => setCategoriaPendienteFiltro('todas')}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase transition-colors cursor-pointer ${categoriaPendienteFiltro === 'todas' ? 'bg-orange-600 text-white' : 'bg-white text-orange-700 border border-orange-200 hover:bg-orange-100'}`}
+                    >
+                      Todas ({pendientesBase.length})
+                    </button>
+                    {categoriasPendientes.map((cat) => {
+                      const cantidad = pendientesBase.filter(p => p.libro?.categoria === cat).length;
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => setCategoriaPendienteFiltro(cat)}
+                          className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase transition-colors cursor-pointer ${categoriaPendienteFiltro === cat ? 'bg-orange-600 text-white' : 'bg-white text-orange-700 border border-orange-200 hover:bg-orange-100'}`}
+                        >
+                          {cat} ({cantidad})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {pendientes.length === 0 && (
+                  <p className="text-sm text-orange-700 font-semibold mb-2">No hay solicitudes que coincidan con tu búsqueda.</p>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {pendientes.map((p) => (
