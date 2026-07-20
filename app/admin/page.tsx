@@ -1375,7 +1375,6 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {usuarios
-                    .filter(u => u.rol !== 'admin')
                     .filter(u => busquedaUsuario === '' || u.dni?.includes(busquedaUsuario) || u.nombre_completo?.toLowerCase().includes(busquedaUsuario.toLowerCase()))
                     .map((usuario) => {
                       const prestamosVencidosUsuario = allPrestamos.filter((p: any) =>

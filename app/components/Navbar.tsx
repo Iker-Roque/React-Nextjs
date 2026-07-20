@@ -100,7 +100,7 @@ const Navbar: React.FC = () => {
               onClick={() => router.push('/admin')}
               className="cursor-pointer bg-lib-dark/5 text-lib-dark border border-lib-dark/20 px-4 py-1.5 rounded-full text-xs font-bold hover:bg-lib-dark hover:text-white transition-all shadow-sm"
             >
-              Panel Control
+              Panel de Control
             </button>
           )}
         </ul>

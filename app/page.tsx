@@ -52,12 +52,12 @@ const Home: React.FC = () => {
         };
     }, []);
 
-    const navigationFeatures = [
-        { title: "Catálogo", desc: "Explorar libros", size: "col-span-1", bg: "bg-lib-dark text-white", path: "/catalogo" },
-        { title: "Préstamos", desc: "Ver mis pedidos", size: "col-span-1", bg: "bg-white text-gray-800", path: "/prestamos" }, 
-        { title: "Renovar", desc: "Extender plazos", size: "col-span-1", bg: "bg-green-50 text-lib-dark", path: "/", arrow: "group-hover:text-white" },
-        { title: "Alertas", desc: "Avisos hoy", size: "col-span-1", bg: "bg-gray-100 text-gray-500", path: "/" },
-    ];
+    //const navigationFeatures = [
+       // { title: "Catálogo", desc: "Explorar libros", size: "col-span-1", bg: "bg-lib-dark text-white", path: "/catalogo" },
+        //{ title: "Préstamos", desc: "Ver mis pedidos", size: "col-span-1", bg: "bg-white text-gray-800", path: "/prestamos" }, 
+        //{ title: "Renovar", desc: "Extender plazos", size: "col-span-1", bg: "bg-green-50 text-lib-dark", path: "/", arrow: "group-hover:text-white" },
+        //{ title: "Alertas", desc: "Avisos hoy", size: "col-span-1", bg: "bg-gray-100 text-gray-500", path: "/" },
+    //];
 
     return (
         <main className="pb-20 bg-lib-cream min-h-screen">
@@ -89,6 +89,7 @@ const Home: React.FC = () => {
             </header>
 
             {/* Sección de tarjetas de inicio */}
+            {/*
             <section className="max-w-250 mx-auto px-10 py-10">
                 <div className="grid grid-cols-4 gap-3">
                     {navigationFeatures.map((f, i) => (
@@ -109,9 +110,9 @@ const Home: React.FC = () => {
                         </button>
                     ))}
                 </div>
-            </section>
+            </section> */}
 
-            <div className="max-w-350 mx-auto px-10 grid grid-cols-12 gap-10">
+            <div className="max-w-350 mx-auto px-10 grid grid-cols-12 gap-10 mt-10">
                 <aside className="col-span-3">
                     <div className="sticky top-24 bg-white p-8 rounded-4xl border border-gray-100 shadow-sm">
                         <h3 className="font-bold text-lg mb-6 font-serif italic text-lib-dark">Explorar Géneros</h3>
