@@ -493,7 +493,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4">
       {/* HEADER */}
       <div className="mb-4">
-        <h2 className="text-3xl font-bold text-lib-dark mb-2">Panel de Control</h2>
+        <h2 className="text-3xl font-bold text-lib-dark mb-2 text-center">Panel de Control</h2>
         <p className="text-gray-500">Gestiona tu catálogo de libros de forma eficiente</p>
       </div>
 
