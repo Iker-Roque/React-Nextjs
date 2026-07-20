@@ -11,7 +11,7 @@ export function usePerfil() {
       try {
         const { data, error } = await supabase
           .from('perfiles')
-          .select('estado_cuenta, motivo_estado, infracciones')
+          .select('rol, estado_cuenta, motivo_estado, infracciones')
           .eq('id', userId)
           .single();
 

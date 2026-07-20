@@ -13,7 +13,7 @@ const Navbar: React.FC = () => {
 
   //UseState
   const [usuario, setUsuario] = useState<any>(null);
-  const ADMIN_EMAIL = "71727374@biblioteca.com"; 
+  const ADMIN_EMAIL = "71727374@biblioteca.com";
   const [rolReal, setRolReal] = useState<string>('usuario');
 
   useEffect(() => {
@@ -72,8 +72,8 @@ const Navbar: React.FC = () => {
   };
 
   const esAdmin = rolReal === 'admin' || usuario?.email === ADMIN_EMAIL;
-
-  
+  const esReponedor = rolReal === 'reponedor';
+  const tieneAccesoPanel = esAdmin || esReponedor;
 
   return (
     <nav className="flex items-center justify-between px-12 py-5 bg-white border-b border-gray-100 sticky top-0 z-50">
@@ -95,7 +95,7 @@ const Navbar: React.FC = () => {
           <li onClick={() => router.push('/')} className={getNavClass('/')}>Inicio</li>
           <li onClick={() => router.push('/catalogo')} className={getNavClass('/catalogo')}>Catálogo</li>
 
-          {esAdmin && (
+          {tieneAccesoPanel && (
             <button
               onClick={() => router.push('/admin')}
               className="cursor-pointer bg-lib-dark/5 text-lib-dark border border-lib-dark/20 px-4 py-1.5 rounded-full text-xs font-bold hover:bg-lib-dark hover:text-white transition-all shadow-sm"
@@ -110,7 +110,7 @@ const Navbar: React.FC = () => {
       <div className="flex items-center gap-6">
         {usuario ? (
           <div className="flex items-center gap-5 border-l pl-5 border-gray-200">
-            
+
             {/* NUEVO: Botón de Mi Perfil */}
             <Link
               href="/perfil"

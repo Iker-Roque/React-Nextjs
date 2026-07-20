@@ -1,3 +1,6 @@
+
+export type Rol = 'admin' | 'reponedor' | 'user';
+
 export interface Usuario {
   id?: number;
   dni: string;
@@ -28,3 +31,4 @@ export interface LibroData {
   disponibles: number;
   imagen_url: string | null;
 }
+
