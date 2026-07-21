@@ -138,7 +138,7 @@ const CardLibro: React.FC<LibroProps> = ({ id, titulo, autor, img, disp, genero,
       }
 
       setStock(stock - 1);
-      toast.success(`¡Préstamo confirmado! Tienes 14 días para devolver ${titulo.replace(/['"]/g, '')}.`, { duration: 3000 });
+      toast.success(`¡Solicitud confirmada! Tienes 14 días para Recoger El Libro ${titulo.replace(/['"]/g, '')}.`, { duration: 3000 });
 
     } catch (error: any) {
       toast.error(`${error.message}`);
